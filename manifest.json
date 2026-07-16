@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "ResumeAdapt",
+  "version": "1.0.0",
+  "description": "Generates a tailored resume from your master sheet and a pasted job description using the Anthropic API.",
+  "permissions": ["storage", "sidePanel"],
+  "host_permissions": ["https://api.anthropic.com/*"],
+  "icons": {
+    "16": "assets/resume-adapt-logo.png",
+    "32": "assets/resume-adapt-logo.png",
+    "48": "assets/resume-adapt-logo.png",
+    "128": "assets/resume-adapt-logo.png"
+  },
+  "action": {
+    "default_title": "ResumeAdapt",
+    "default_icon": {
+      "16": "assets/resume-adapt-logo.png",
+      "32": "assets/resume-adapt-logo.png",
+      "48": "assets/resume-adapt-logo.png",
+      "128": "assets/resume-adapt-logo.png"
+    }
+  },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html"
+}

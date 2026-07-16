@@ -1,0 +1,370 @@
+/* Extension UI — dark, glass-like: black base, gray/silver gradients,
+   translucent frosted panels. Shared by the popup and the options (Settings)
+   page; layout differs by the body class. (The generated resume itself keeps
+   its own light document styling; see RESUME_STYLES in shared.js — that's why
+   the .preview stays a light paper sheet.) */
+
+:root {
+  --ink: #ececed;         /* primary text — near-silver white */
+  --mid: #a6a6ae;         /* secondary text */
+  --faint: #6b6b74;       /* hints */
+  --line: rgba(255, 255, 255, 0.12);
+  --line-soft: rgba(255, 255, 255, 0.07);
+  --glass: rgba(255, 255, 255, 0.045);
+  --glass-hi: rgba(255, 255, 255, 0.08);
+  --silver: linear-gradient(180deg, #f4f4f6 0%, #c3c3cb 48%, #9a9aa4 100%);
+  --silver-soft: linear-gradient(135deg, #e6e6ea 0%, #9c9ca6 100%);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font: 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+  background:
+    radial-gradient(130% 90% at 50% -15%, #1d1d24 0%, #101014 48%, #0a0a0d 78%, #060608 100%)
+    fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Layout: the side panel fills whatever width the user drags it to; options is
+   a centered page. */
+body.panel { min-width: 300px; }
+body.panel main { padding: 18px 18px 22px; }
+
+body.options { min-height: 100vh; }
+body.options main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+}
+
+header { margin-bottom: 16px; }
+body.options header { margin-bottom: 40px; }
+
+.brand-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.brand-logo {
+  display: block;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  flex: 0 0 28px;
+  border-radius: 5px;
+}
+.brand-logo img {
+  display: block;
+  width: 31px;
+  max-width: none;
+  transform: translate(-3.6px, -7.5px);
+}
+body.options .brand-logo { width: 34px; height: 34px; flex-basis: 34px; border-radius: 6px; }
+body.options .brand-logo img { width: 38px; transform: translate(-4.4px, -9.2px); }
+
+h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  background: var(--silver-soft);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+body.options h1 { font-size: 22px; }
+
+.sub { margin: 5px 0 0; color: var(--faint); font-size: 13px; }
+
+section { margin-bottom: 18px; }
+body.options section { margin-bottom: 36px; }
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+
+/* Frosted-glass panel — setup notice */
+.notice {
+  border: 1px solid var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.notice p { margin: 0 0 10px; color: var(--mid); }
+
+/* Reference link (get API key) */
+.ref-link {
+  font-size: 12.5px;
+  color: #cfcfd6;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ref-link:hover { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
+
+/* Drop zone */
+.drop-zone {
+  border: 1px dashed var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 26px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.drop-zone:hover { border-color: rgba(255, 255, 255, 0.22); }
+.drop-zone.dragging {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: var(--glass-hi);
+}
+.drop-zone.busy { opacity: 0.5; pointer-events: none; }
+.drop-zone p { margin: 0 0 4px; color: var(--ink); }
+.hint { color: var(--faint); font-size: 12px; margin: 4px 0 0; }
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #cfcfd6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.link-btn:hover:not(:disabled) { color: #fff; background: none; }
+
+/* Icon-only button (e.g. the settings gear) — overrides the glassy default */
+.icon-btn {
+  background: none;
+  border: none;
+  padding: 5px;
+  color: var(--mid);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: color 0.15s, background 0.15s, transform 0.25s;
+}
+.icon-btn:hover:not(:disabled) {
+  color: #fff;
+  background: var(--glass-hi);
+  border: none;
+  transform: rotate(30deg);
+}
+
+/* Inputs */
+textarea, input[type="password"], input[type="text"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  padding: 9px 11px;
+  font: inherit;
+  border-radius: 9px;
+  resize: vertical;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+textarea::placeholder, input::placeholder { color: var(--faint); }
+textarea:focus, input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+/* Buttons */
+button {
+  font: inherit;
+  font-size: 13.5px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  color: var(--ink);
+  border-radius: 9px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+}
+button:hover:not(:disabled) {
+  background: var(--glass-hi);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+button:active:not(:disabled) { transform: translateY(1px); }
+
+/* Metallic silver primary button */
+button.primary {
+  background: var(--silver);
+  color: #101014;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 6px rgba(0, 0, 0, 0.4);
+}
+button.primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffffff 0%, #d0d0d8 48%, #a6a6b0 100%);
+}
+button:disabled { opacity: 0.4; cursor: default; }
+
+/* Layout helpers */
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+.spread h2 { margin-bottom: 0; }
+.downloads { margin-top: 12px; }
+.downloads button { flex: 1; text-align: center; }
+
+/* Loading spinner (master-sheet read) */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #dcdce2;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex: 0 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+/* `display: inline-block` above would otherwise beat the `hidden` attribute's
+   default `display: none` (class selector wins on source order) — keep it hidden
+   when the attribute is set. */
+.spinner[hidden] { display: none; }
+
+/* Status + errors */
+.status { color: var(--mid); font-size: 12.5px; margin: 8px 0 0; }
+.error {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  background: rgba(120, 20, 20, 0.18);
+  color: #f0cccc;
+  border-radius: 9px;
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Preview — the generated resume rendered as a light "paper" sheet floating on
+   the dark UI. Content sets its own dark text + blue accent inline, so the
+   background stays light. Constrained + scrollable to fit inside the popup. */
+.preview {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #fbfbfc;
+  color: #1a1a1a;
+  padding: 24px 26px;
+  max-height: 55vh;
+  overflow: auto;
+  border-radius: 10px;
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+/* Result section: breathing room after the Generate row, and between the
+   edit hint and the preview sheet */
+#result-section { margin-top: 28px; }
+#result-section .hint { margin: 8px 0 14px; }
+
+/* Match-assessment badge (self-scored fit vs the job description) */
+.match {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 2px 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.match-score { font-size: 19px; font-weight: 700; flex: 0 0 auto; }
+.match-score.good { color: #8fd69a; }
+.match-score.mid { color: #e6c979; }
+.match-score.low { color: #e89090; }
+.match-text { color: var(--mid); font-size: 12.5px; }
+
+/* Inline-editable preview fields (light "paper" context, so accent-tinted) */
+.preview .ed {
+  border-radius: 3px;
+  outline: none;
+  cursor: text;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.preview .ed:hover { background: rgba(26, 79, 139, 0.07); }
+.preview .ed:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(26, 79, 139, 0.35);
+}
+
+/* Settings page input flex */
+body.options input { flex: 1; }
+
+/* Inline code + emphasis in hints */
+code {
+  font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+  font-size: 0.9em;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* Parsed-data view — read-only inventory JSON for verification */
+details#inventory-details { margin-top: 14px; }
+details#inventory-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+.inventory-view {
+  margin-top: 10px;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #d6d6db;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.inventory-view::-webkit-scrollbar { width: 10px; height: 10px; }
+.inventory-view::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+}
+
+
+/* Subtle dark scrollbars */
+.preview::-webkit-scrollbar,
+textarea::-webkit-scrollbar { width: 10px; height: 10px; }
+.preview::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+}
+textarea::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+}
+::selection { background: rgba(200, 200, 210, 0.3); }

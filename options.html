@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ResumeAdapt — Settings</title>
+  <link rel="icon" type="image/png" href="assets/resume-adapt-logo.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="options">
+  <main>
+    <header class="brand-header">
+      <div class="brand-title">
+        <span class="brand-logo" aria-hidden="true"><img src="assets/resume-adapt-logo.png" alt=""></span>
+        <h1>ResumeAdapt — Settings</h1>
+      </div>
+      <p class="sub">Set your API key and master sheet here; generate resumes from the side panel (toolbar icon).</p>
+    </header>
+
+    <section>
+      <div class="row spread">
+        <h2>Anthropic API key</h2>
+        <a class="ref-link" href="https://platform.claude.com/settings/workspaces/default/keys" target="_blank" rel="noopener">Get your API key &rarr;</a>
+      </div>
+      <div class="row">
+        <input type="password" id="api-key-input" placeholder="sk-ant-&hellip;" autocomplete="off">
+        <button id="save-key-btn" type="button">Save</button>
+      </div>
+      <p id="key-status" class="status"></p>
+      <p class="hint">Stored locally in this browser only (chrome.storage.local). Calls go directly from the extension to api.anthropic.com.</p>
+    </section>
+
+    <section>
+      <h2>Master sheet</h2>
+      <div id="drop-zone" class="drop-zone" tabindex="0">
+        <p>Drop your master sheet here, or <button id="browse-btn" class="link-btn" type="button">browse</button></p>
+        <p class="hint">.pdf or .docx &mdash; ingested once, then cached and reused for every resume</p>
+        <input type="file" id="file-input" accept=".pdf,.docx" hidden>
+      </div>
+      <div class="row">
+        <span id="master-spinner" class="spinner" hidden></span>
+        <span id="master-status" class="status" hidden></span>
+      </div>
+      <details id="inventory-details" hidden>
+        <summary>View parsed data</summary>
+        <p class="hint">This is exactly what the resume generator uses &mdash; only what's in your master sheet. Read it to verify nothing was invented; if something looks wrong, fix the master sheet and re-upload.</p>
+        <pre id="inventory-view" class="inventory-view"></pre>
+      </details>
+      <p id="error-box" class="error" hidden></p>
+    </section>
+  </main>
+
+  <script src="lib/mammoth.browser.min.js"></script>
+  <script src="prompts.js"></script>
+  <script src="shared.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
