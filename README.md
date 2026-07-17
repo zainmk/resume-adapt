@@ -5,6 +5,12 @@ once in Settings, then click the toolbar icon to open the **side panel**, paste
 a job description, and download a tailored resume as .docx (finalize length/layout in Word). Calls the
 Anthropic API directly from the browser with your own API key.
 
+
+
+https://github.com/user-attachments/assets/bbd99d3c-15f6-4645-9fb9-590348aa1e6f
+
+
+
 ## Install (load unpacked)
 
 1. Open `chrome://extensions`
