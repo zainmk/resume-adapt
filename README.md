@@ -1,113 +1,137 @@
 # ResumeAdapt — Chrome Extension
 
-Personal-use MV3 extension: configure a master sheet (.pdf/.docx) and API key
-once in Settings, then click the toolbar icon to open the **side panel**, paste
-a job description, and download a tailored resume as .docx (finalize length/layout in Word). Calls the
-Anthropic API directly from the browser with your own API key.
+**Turn one master résumé into a tailored, job-specific résumé in seconds — grounded only in your real experience, and engineered to keep the LLM cost near zero.**
 
-
+A Manifest V3 Chrome extension that ingests your career "master sheet" once, then generates ATS-aware résumés tailored to any pasted job description. It runs entirely in the browser against your own Anthropic API key, and is deliberately architected around **caching and indexing** so that the expensive part of the work — reading your full career history — is paid for as few times as possible.
 
 https://github.com/user-attachments/assets/bbd99d3c-15f6-4645-9fb9-590348aa1e6f
 
+---
 
+## What it does
 
-## Install (load unpacked)
+1. **Ingest once.** Drop in a master sheet (`.pdf` or `.docx`) containing everything you've ever done. It's read a single time and distilled into a compact, structured **experience inventory** cached locally.
+2. **Generate per job.** Paste a job description; the model selects the relevant experience from the inventory, rewrites it in the posting's own terminology (ATS keyword matching), and returns a structured résumé.
+3. **Review & download.** Edit any text inline in the live preview, then download a styled `.docx` (finalize length/layout in Word).
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked** and select this `extension/` folder
-4. Click the toolbar icon — the side panel opens (and stays open while you
-   browse other tabs, e.g. the job posting)
+The core guarantee: **it never invents.** Every fact on the résumé traces back to your master sheet; the model selects and rephrases, but does not fabricate employers, titles, dates, metrics, or skills.
 
-## First-time setup (Settings page)
+## Highlights
 
-Open **Settings** from the link in the panel header (or right-click the toolbar
-icon → Options):
+- **Two-phase LLM pipeline** — a one-time *ingestion* pass (document → structured index) decoupled from cheap, repeatable *generation* passes (index + job description → résumé).
+- **Truthfulness by construction** — inventory-only grounding, a "View parsed data" audit panel, and a fully editable preview that writes straight back into the résumé JSON.
+- **Cost-minimizing by design** — application-level indexing + model-level prompt caching mean cost scales with the *small* changing input (the job description), not the *large* stable one (your career history). See [Cost engineering](#cost-engineering).
+- **Live editing** — click any text in the preview to edit; changes auto-save and flow into the download. Blue titles are clickable links to the underlying project/company URL.
+- **Match assessment** — each generation returns a self-scored `%` fit against the job description, with short notes on the strongest alignment and the biggest gap.
+- **Side-panel UX** — lives in Chrome's side panel, so it stays open while you read the job posting in another tab; session state (draft + last result) persists across open/close.
+- **Local & private** — the API key and inventory live in `chrome.storage.local`; the only network calls are direct to `api.anthropic.com`. No backend, no third-party services.
 
-1. Save your Anthropic API key (stored in `chrome.storage.local`, never leaves
-   this browser except in requests to `api.anthropic.com`). The **"Get your API
-   key →"** link opens the Anthropic key management page.
-2. Drop your master sheet (.pdf or .docx) into the upload zone. It's converted
-   once into a structured "experience inventory" and cached — only the contents
-   of the master file are used. Re-upload any time to replace it.
-3. Verify what was captured with **"View parsed data"** — it shows the exact
-   inventory the generator will use; read it to confirm nothing was invented.
+---
 
-## Usage (side panel)
+## How it works — the pipeline
 
-Click the toolbar icon → paste a job description → **Generate** → review the
-preview → **Download .docx** (edit/finalize in Word). **Regenerate** re-runs with
-the same inputs. Generation reads only the cached inventory and selects the
-content relevant to the specific job. If the API key or master sheet isn't set
-up yet, the panel shows a notice with a button to open Settings.
+The design separates the work into two token phases with very different cost profiles:
 
-**Session persistence:** the draft job description auto-saves as you type, and
-the last generated resume is stored — closing and reopening the panel restores
-both, so nothing is lost and no regeneration is needed. Because it's a side
-panel (not a popup), it also stays open while you click around other tabs, and
-an in-flight generation isn't killed by clicking away.
+```
+                         ┌── one-time, expensive ──┐        ┌──── repeatable, cheap ────┐
+ master sheet (.pdf/.docx) → [ INGESTION ] → inventory JSON → [ GENERATION ] → résumé JSON → .docx
+   (~30 pages, sent once)      distill &        (cached in       select, tailor,   (rendered
+                               index            chrome.storage)  ATS-match          client-side)
+```
 
-**Clickable links:** if a company, project, or certification in your master
-sheet has a URL next to it, that entry's **title itself is a clickable link**
-(shown in the accent color) in the preview and the .docx — using the
-first URL found for the entry. Entries without a URL render as plain titles.
-Nothing is fetched — the link is just carried through as data.
+- **Ingestion** is the heavy step: the model reads the entire master document (a PDF is read *natively*, with layout/vision), interprets it, and emits a dense, structured inventory that captures every distinct fact and "angle" — but strips prose, tutorials, and boilerplate. This runs once and is cached; it re-runs only on re-upload.
+- **Generation** consumes the lightweight cached inventory plus the pasted job description, and produces a résumé constrained to a strict JSON schema. Because the heavy document is already indexed, each generation is small and fast.
+
+Intermediate **JSON schemas** act as the contract between the model and the app: they convert the LLM's free-form output into the static, predictable structure the renderers need, and simultaneously constrain the model's response (a schema is a far more reliable control than a prose instruction).
+
+---
+
+## Cost engineering
+
+Every LLM call is billed by tokens, and this app is built around one asymmetry: **your career history is large and stable; the job description is small and changes every time.** ResumeAdapt is designed so you pay for the large stable part as rarely as possible, using **two independent caching layers**.
+
+### 1. Application-level indexing (`chrome.storage.local`)
+
+The master sheet — potentially 30+ pages — is sent to the model **exactly once**, where it's distilled into a compact structured inventory (the index) and cached in the browser. Every future résumé is generated from that lightweight index; the original document is never re-sent. This is the single biggest lever: it turns a recurring large-document cost into a one-time cost.
+
+### 2. Model-level prompt caching (KV cache)
+
+**What "caching" means *inside* the model.** When a transformer reads a prompt, it computes and stores an internal representation of every token — the attention Key/Value tensors, collectively the *KV cache*. Because these models are **causal** (a token's representation depends only on the tokens before it), that internal state is a deterministic function of the exact preceding bytes: an identical prefix always produces identical internal state.
+
+Anthropic's prompt caching exploits this. It stores the processed state of a request's stable **prefix** and, on later requests that share that prefix byte-for-byte, reloads the state instead of recomputing it — billing the reused span at ~10% of normal input price. Crucially, **nothing about the answer is cached**: each résumé is generated fresh. Only the model's "having-read the input" work is reused, so there is no staleness — identical input bytes simply produce identical internal state by construction. (This is also why a single changed byte early in a prompt invalidates everything after it: downstream tokens now attend to different predecessors.)
+
+ResumeAdapt orders every generation request to exploit this:
+
+```
+[ system prompt + inventory ][ ⚑ cache breakpoint ][ job description ] → résumé
+└──── stable, byte-identical every run: cached (1h TTL) ────┘ └─ small, fresh each run ─┘
+```
+
+The first generation of a session writes the prefix to cache (a one-time premium); every generation within the hour re-reads it at ~10% price — roughly a **25–30% saving on each subsequent run**. Because the cache key *is* the content, re-ingesting the master automatically invalidates it with no bookkeeping.
+
+### Full list of cost strategies
+
+| # | Strategy | Effect |
+|---|---|---|
+| 1 | **Ingest once, cache the index** | The largest input is read a single time; generations reuse the cached inventory. |
+| 2 | **Distillation, not transcription** | Ingestion keeps every fact as short atomic phrases and drops prose/theory/boilerplate — shrinking both the one-time output *and* the recurring generation input. |
+| 3 | **Fixed ingestion output budget (~4k words)** | Decouples output cost from document size — a bigger master compresses harder instead of costing more. |
+| 4 | **Single-attempt ingestion** | The most expensive call never auto-retries; a failure surfaces immediately instead of silently doubling the bill. |
+| 5 | **Bounded `max_tokens`** (16k ingest / 4k gen) | High enough to avoid truncation (a truncated run is 100% wasted spend), low enough to cap worst case. |
+| 6 | **One call per generation, piggybacked extras** | Filename metadata and the match-score are extra JSON fields on the same call, not separate requests. |
+| 7 | **Prompt guidance over measurement loops** | Page length is steered by the prompt; an earlier corrective-regeneration loop was removed — final layout is tuned free-of-cost in Word. |
+| 8 | **No per-generation fetching** | Linked project pages are treated as inert data, not fetched at generation time. |
+| 9 | **Free local work** | Inline edits, `.docx` rendering, and session persistence all happen client-side — no regeneration to fix a word. |
+| 10 | **Anthropic prompt caching** | Stable prefix cached with a 1-hour TTL (see above); hits logged to the DevTools console. |
+
+**Known next lever (not yet implemented):** run *generation* on a smaller model (Haiku) while keeping *ingestion* on the more capable model — the generation prompt is intentionally prescriptive to make a smaller model viable (see [Model distillation](#engineering-notes)). Ingestion stays on the stronger model because the fact-selection phase is where a hallucination becomes a false claim on a résumé — a hard limit.
+
+---
+
+## Setup & usage
+
+**Install (load unpacked):**
+
+1. Open `chrome://extensions` and enable **Developer mode**.
+2. **Load unpacked** → select the `extension/` folder.
+3. Click the toolbar icon — the **side panel** opens.
+
+**First-time setup (Settings ⚙):**
+
+1. Save your Anthropic API key (stored in `chrome.storage.local`; used only for direct requests to `api.anthropic.com`).
+2. Drop in your master sheet (`.pdf`/`.docx`). It's ingested once and cached.
+3. Optionally open **"View parsed data"** to confirm exactly what was captured (nothing is invented).
+
+**Generate:** paste a job description → **Generate** → edit inline as needed → **Download .docx**. **Regenerate** re-runs; the side panel persists your draft and last result across open/close.
+
+---
 
 ## Architecture
 
-- **`sidepanel.html` / `sidepanel.js`** — the side panel: job description in,
-  tailored resume out (preview + downloads). Reads the cached inventory + key;
-  persists the session (JD draft + last result) across open/close.
-- **`background.js`** — one-liner service worker that makes the toolbar icon
-  open the side panel.
-- **`options.html` / `options.js`** — the Settings page: API key input (with
-  the reference link), master-sheet upload/ingestion, and the parsed-data view.
-- **`shared.js`** — API calls, storage helpers, `RESUME_STYLES`, error
-  formatting, shared by both pages.
-- **`prompts.js`, `render-docx.js`, `render-pdf.js`** — verbatim prompts and
-  the renderers: .docx is the download; the pdfmake renderer is kept for the free in-memory page-count estimate shown in the match badge.
+| File | Role |
+|---|---|
+| `sidepanel.html` / `sidepanel.js` | The panel: job description in, tailored résumé out (preview, inline editing, match badge, download). Reads the cached inventory + key; persists session state. |
+| `options.html` / `options.js` | Settings: API key, master-sheet upload/ingestion, and the parsed-data audit view. |
+| `background.js` | Minimal service worker — opens the side panel on toolbar click. |
+| `shared.js` | API layer (calls, prompt caching, timeouts, error mapping), storage helpers, shared style tokens. |
+| `prompts.js` | The ingestion and generation system prompts + request assembly (incl. the cache breakpoint). |
+| `render-docx.js` / `render-pdf.js` | Pure renderers from the résumé JSON. `.docx` is the download; the pdfmake renderer supports the in-memory page estimate. |
 
+---
 
-## Design Decisions
-- Balancing the cost of API token w. the quality of interpretation/generation of the resulting PDF. The goal is to find the right balance of quality to cost. Cost & Understanding the ingestion pipeline. There are three phases of tokenization; input of resume-master, input job desc., and output resume. There are pros/cons to each of these which affect the quality/cost ratio of the generated resume - and how well it matches the job description. Via Anthropic models; the 'sonnet' model is most capable and balanced for these purposes.
-- Model Distillation; Using a higher-order level AI model to generate the 'prompt' (and any other hardcoded instruction sets), for a lesser-level model to 'interpret' and apply.
-- git commit accordingly, with feature and context in mind. It is much cheaper & easier to revert commits, then it is to prompt a reversal-change (during code development)
-- Using intermediate JSON schema structures, to 'fine-tune' the LLM response as per the input and have it be usable for actual resume generation. These JSON schema's allow a transition from the dynamic answers of the LLM to the static structure required by the application.
-- Prompt breakdown is essential. It can be difficult to fine-tune control the model's response, when the input is a contextual-based sentence prompt (ex. asking the LLM to be more professional in 'voice', becomes difficult to assess how the model assesses a 'regular' professional voice to even give a 'more' professional voice - within the context of professionalism)
-- Risk of using a lesser model also include the possiblity of hallucinations; given within the context of a resume-generator, the risk of hallucinations is false information in the generated resume, this is HARD limit - therefore an effective model is required (specfically for the 'inventory-selection' token phase)
-- The most cost is in the initial resume-master ingetsion token phase. When the model parses through all of the content provided in the resume-master, interprets contextually, then selects accordingly to the JSON schema - to define the response in a usable format.
+## Engineering notes
 
-### Breakdown; Cost
-The goal is to implement this feature in as cost-effective as possible. Current implementation is to utilize Anthropic's API key to 'fuel' the LLM in the app. It is preferable to limit the costs of using this API through several strategies:
+- **Model distillation.** A higher-capability model was used to *author* the hardcoded prompts and instruction sets; a balanced production model applies them at runtime. This front-loads reasoning into fixed instructions, which is what makes a smaller/cheaper runtime model viable.
+- **Schemas as a control surface.** Intermediate JSON schemas bridge the LLM's dynamic output to the app's static rendering — and act as a stronger constraint on the model than any prose instruction.
+- **Prompt decomposition.** Qualitative asks ("sound more professional") are hard to control or verify, because the model's baseline for the quality is itself fuzzy. Instructions are broken into concrete, checkable rules instead.
+- **Hallucination is a hard limit.** In a résumé generator, a hallucination is a *false claim about the candidate*. The system enforces truthfulness structurally — inventory-only grounding, a human audit panel, and an editable preview — and reserves the most capable model for the quality-critical selection phase.
+- **Cheap reversibility.** Work is committed per feature with clear context; reverting a commit is cheaper and more reliable than prompting a model to undo a change mid-development.
 
-**Cost-saving strategies implemented so far:**
+---
 
-1. **Ingest once, cache forever** — the master sheet (the largest input by far) is read by the API exactly once and distilled into a compact inventory cached in `chrome.storage.local`. Every resume generation reuses the cache; the 30-page document is never re-sent. Re-ingestion happens only when the user re-uploads.
-2. **Distillation, not transcription** — the ingestion prompt extracts every distinct fact/angle as short atomic phrases and explicitly omits prose, theory, setup instructions, and low-value IDs. This shrinks the one-time ingestion *output* AND the recurring generation *input* (the inventory is resent on every run), the single biggest recurring token cost.
-3. **Fixed output budget on ingestion** (~4,000 words regardless of source size) — decouples output cost from master-document size; a bigger master compresses harder instead of costing more.
-4. **Single-attempt ingestion** — the most expensive call in the app never auto-retries; a failure surfaces immediately instead of silently doubling the bill. (Generation, the cheap call, keeps one auto-retry for malformed JSON.)
-5. **Generous-but-bounded `max_tokens`** — 16k ingestion / 4k generation: high enough that outputs don't truncate (a truncated run is 100% wasted spend + a retry), low enough to cap worst-case cost.
-6. **One API call per generation, with piggybacked extras** — the job-title/company (for the download filename) and the match-score assessment are folded into the same generation call as extra JSON fields (~50 output tokens) instead of separate API calls.
-7. **Page-length control via prompt guidance, not measurement loops** — an earlier design measured the rendered page count and ran corrective regeneration calls to hit an exact page target; it was removed in favor of free prompt guidance ("commit to whichever full page boundary is tighter"), with final layout tuned by hand in Word at zero API cost.
-8. **No per-generation fetching** — an earlier design fetched linked project pages (first via Claude's server-side `web_fetch` tool — dropped as too costly — then via free client-side fetch); removed entirely so generation input is only the cached inventory + pasted job description.
-9. **Free local work wherever possible** — inline preview edits write directly into the cached JSON (no regeneration to fix a word), the .docx renders client-side, and session persistence restores the last result on reopen so nothing is regenerated by accident.
-10. **Anthropic prompt caching on generation** — the generation message places the stable prefix (system prompt + inventory) before the per-run job description, with a `cache_control` breakpoint (1-hour TTL) after the inventory. The first generation of a session pays a one-time cache write (~2× on the prefix); every later generation within the hour re-reads that prefix at ~0.1× price — roughly 25-30% off each subsequent run. Cache hits are logged to the DevTools console (`[ResumeAdapt] tokens — …`).
+## Tech stack
 
-**Not yet implemented (known next lever):** switching generation to Haiku 4.5 (~3× cheaper; the highly prescriptive generation prompt is designed to make a smaller model viable per the Model Distillation principle) while keeping Sonnet for the one-time, quality-critical ingestion.
-
-
-## Testing checklist
-
-- [ ] In Settings, ingest a PDF master sheet; then re-upload a DOCX and confirm the cache is replaced
-- [ ] Popup shows the setup notice when the key or master sheet is missing, and hides it once both are set
-- [ ] Spot-check "View parsed data" against the master sheet (no fabricated facts; only what's in the file)
-- [ ] Generate for an unrelated job and confirm irrelevant projects are omitted (selection still applies)
-- [ ] Open the .docx in Word/Google Docs and confirm styling + clickable links
-- [ ] Restart the browser and confirm the cached inventory + key persist, and Reload is enabled
-- [ ] Error states: no key saved, invalid key, no master sheet, empty job description
-
-
-## Vendored libraries (`lib/`)
+Vanilla JS (no framework), Manifest V3, the Anthropic Messages API, and three vendored client-side libraries:
 
 | File | Package | Version |
 |---|---|---|
