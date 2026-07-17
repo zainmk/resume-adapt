@@ -8,6 +8,28 @@ https://github.com/user-attachments/assets/bbd99d3c-15f6-4645-9fb9-590348aa1e6f
 
 ---
 
+## Purpose
+
+AI-assisted tools are now used on both sides of the job search — by candidates
+writing applications and by employers screening them. That isn't going away;
+what matters is using them the way they *should* be used. Here, that means
+tailoring a résumé so the candidate's real experience overlaps with a role's
+requirements — **without hallucinated facts or misleading terminology.** On a
+résumé, a fabrication isn't a harmless glitch: it's a false claim about a
+person. That is exactly why the model choice is an engineering decision, not an
+afterthought — a cheaper model lowers cost but raises hallucination risk, so the
+design has to account for that tradeoff rather than ignore it.
+
+ResumeAdapt is built around that principle. You provide a **master résumé**
+holding all of your experience, across every background, in as much detail as
+you like — this is the place to be exhaustive, and to include exact metrics
+wherever possible. From there the tool works across three tokenization phases,
+each a distinct cost surface: it **remembers** the master résumé (ingesting it
+once into a cached JSON schema), **understands** the pasted job description, and
+**produces** the best-suited résumé from that cached data. Each phase trades cost
+against quality, so the whole tool is designed to minimize spend without ever
+crossing the truthfulness line — because I built it to use for my own job search.
+
 ## What it does
 
 1. **Ingest once.** Drop in a master sheet (`.pdf` or `.docx`) containing everything you've ever done. It's read a single time and distilled into a compact, structured **experience inventory** cached locally.
