@@ -100,7 +100,8 @@ before or after. Exactly this schema:
 
 {
   "meta": { "job_title": string, "company": string,
-            "match": { "score": number, "notes": [string] } },
+            "match": { "score": number, "notes": [string] },
+            "gaps": [string] },
   "name": string,
   "contact": { "email": string, "phone": string, "links": [string] },
   "summary": string,
@@ -131,6 +132,16 @@ evidence; 40-64 means partial coverage with one or more key requirements
 unsupported; below 40 means a weak match. "notes" is 1-3 short factual phrases:
 lead with the strongest alignment, then name the most important unmet
 requirement(s) if any. No advice, no hedging language.
+
+"gaps" lists the concrete skills, tools, technologies, or qualifications the
+job requires (must-have or clearly preferred) that the inventory does NOT
+support — so the candidate can track what recurs across their applications.
+Rules: each item is a SHORT, NORMALIZED canonical tag (e.g. "Kubernetes",
+"PHP", "AWS", "Team leadership", "SOC 2"), NOT a sentence or a copy of the
+posting's phrasing. Use the common industry name so the same gap tags
+identically across different postings. Include only genuine gaps — never
+something the resume already evidences. Deduplicate. 0-8 items, most important
+first. Empty array if the resume covers essentially everything required.
 
 LINKS: For an experience, project, or certification, if the inventory has one
 or more URLs associated with that entry, set "url" to the FIRST such URL so it

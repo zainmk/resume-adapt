@@ -19,6 +19,10 @@ const el = {
   matchBox: document.getElementById("match-box"),
   preview: document.getElementById("preview"),
   dlDocxBtn: document.getElementById("dl-docx-btn"),
+  gapsPanel: document.getElementById("gaps-panel"),
+  gapsCount: document.getElementById("gaps-count"),
+  gapsList: document.getElementById("gaps-list"),
+  clearHistoryBtn: document.getElementById("clear-history-btn"),
 };
 
 let lastResume = null;
@@ -63,6 +67,99 @@ async function restoreSession() {
     renderMatch(savedResume.meta);
     el.resultSection.hidden = false;
   }
+  renderGaps(await getApplications());
+}
+
+// ---------------------------------------------------------------------------
+// Application history + recurring-gap tracking (tier B). Each generation
+// records {jdKey, title, company, date, score, gaps[]} locally — no extra API
+// call, the gaps come from the same generation response. Records are keyed by
+// a hash of the job description so regenerating the same job updates its record
+// rather than double-counting.
+// ---------------------------------------------------------------------------
+function hashJd(s) {
+  let h = 5381;
+  const t = (s || "").trim();
+  for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+async function getApplications() {
+  const { applications } = await chrome.storage.local.get("applications");
+  return Array.isArray(applications) ? applications : [];
+}
+
+async function recordApplication(jd, resume) {
+  const meta = (resume && resume.meta) || {};
+  const record = {
+    jdKey: hashJd(jd),
+    title: (meta.job_title || "").trim() || "Role",
+    company: (meta.company || "").trim(),
+    date: new Date().toISOString(),
+    score: meta.match && typeof meta.match.score === "number" ? meta.match.score : null,
+    gaps: Array.isArray(meta.gaps) ? meta.gaps.map((g) => String(g).trim()).filter(Boolean) : [],
+  };
+  const apps = await getApplications();
+  const idx = apps.findIndex((a) => a.jdKey === record.jdKey);
+  if (idx >= 0) apps[idx] = record; // same job re-generated → replace
+  else apps.push(record);
+  await chrome.storage.local.set({ applications: apps });
+  renderGaps(apps);
+}
+
+// Tally normalized gap tags across all applications (deduped per application).
+function aggregateGaps(applications) {
+  const counts = new Map(); // canonical -> { label, count }
+  for (const app of applications) {
+    const seen = new Set();
+    for (const raw of app.gaps || []) {
+      const canon = String(raw).trim().toLowerCase();
+      if (!canon || seen.has(canon)) continue;
+      seen.add(canon);
+      const entry = counts.get(canon) || { label: String(raw).trim(), count: 0 };
+      entry.count++;
+      counts.set(canon, entry);
+    }
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function renderGaps(applications) {
+  const total = applications.length;
+  if (!total) {
+    el.gapsPanel.hidden = true;
+    return;
+  }
+  el.gapsCount.textContent = String(total);
+  el.gapsList.textContent = "";
+
+  const gaps = aggregateGaps(applications);
+  if (!gaps.length) {
+    const none = document.createElement("p");
+    none.className = "hint";
+    none.textContent = "No unmet requirements flagged yet — your master sheet covers what you've applied to.";
+    el.gapsList.appendChild(none);
+  } else {
+    gaps.slice(0, 20).forEach((g) => {
+      const row = document.createElement("div");
+      row.className = "gap-row";
+      const bar = document.createElement("span");
+      bar.className = "gap-count" + (g.count >= 2 ? " recurring" : "");
+      bar.textContent = `${g.count}/${total}`;
+      const label = document.createElement("span");
+      label.className = "gap-label";
+      label.textContent = g.label;
+      row.appendChild(bar);
+      row.appendChild(label);
+      el.gapsList.appendChild(row);
+    });
+  }
+  el.gapsPanel.hidden = false;
+}
+
+async function clearHistory() {
+  await chrome.storage.local.remove("applications");
+  renderGaps([]);
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +253,7 @@ async function generate() {
     lastResume = resume;
     lastJobTitle = deriveJobTitle(jd);
     await saveResult(resume, lastJobTitle);
+    await recordApplication(jd, resume);
     renderPreview(resume);
     renderMatch(resume.meta);
     el.resultSection.hidden = false;
@@ -539,6 +637,7 @@ el.openSettingsBtn.addEventListener("click", () => chrome.runtime.openOptionsPag
 el.generateBtn.addEventListener("click", generate);
 el.regenerateBtn.addEventListener("click", generate);
 el.dlDocxBtn.addEventListener("click", downloadDocx);
+el.clearHistoryBtn.addEventListener("click", clearHistory);
 el.jdInput.addEventListener("input", saveDraft);
 
 checkReadiness();

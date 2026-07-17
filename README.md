@@ -45,6 +45,7 @@ The core guarantee: **it never invents.** Every fact on the résumé traces back
 - **Cost-minimizing by design** — application-level indexing + model-level prompt caching mean cost scales with the *small* changing input (the job description), not the *large* stable one (your career history). See [Cost engineering](#cost-engineering).
 - **Live editing** — click any text in the preview to edit; changes auto-save and flow into the download. Blue titles are clickable links to the underlying project/company URL.
 - **Match assessment** — each generation returns a self-scored `%` fit against the job description, with short notes on the strongest alignment and the biggest gap.
+- **Recurring skill-gap tracking** — the model also emits the normalized requirements a job asks for that your master sheet doesn't cover; these are aggregated across every application into a "these keep coming up" panel, turning per-job feedback into a strategic *skills-to-build* signal. Rides the existing generation call — no extra API cost. See [Career-signal tracking](#career-signal-tracking-recurring-gaps).
 - **Side-panel UX** — lives in Chrome's side panel, so it stays open while you read the job posting in another tab; session state (draft + last result) persists across open/close.
 - **Local & private** — the API key and inventory live in `chrome.storage.local`; the only network calls are direct to `api.anthropic.com`. No backend, no third-party services.
 
@@ -65,6 +66,18 @@ The design separates the work into two token phases with very different cost pro
 - **Generation** consumes the lightweight cached inventory plus the pasted job description, and produces a résumé constrained to a strict JSON schema. Because the heavy document is already indexed, each generation is small and fast.
 
 Intermediate **JSON schemas** act as the contract between the model and the app: they convert the LLM's free-form output into the static, predictable structure the renderers need, and simultaneously constrain the model's response (a schema is a far more reliable control than a prose instruction).
+
+---
+
+## Career-signal tracking (recurring gaps)
+
+Tailoring one résumé is *reactive*. The more useful question over a job search is *strategic*: **which requirements keep coming up that I don't have?** ResumeAdapt answers it without any extra API cost, by reusing work it already does.
+
+Every generation call already returns a match assessment. It now also returns a small `meta.gaps` array — the **normalized** skills/tools/qualifications the job requires that your master sheet doesn't support (e.g. `["Kubernetes", "PHP", "Team leadership"]`). Because these are canonical tags rather than the posting's freeform phrasing, the *same* gap tags identically across different postings — which is what makes "keeps coming up" counting actually work.
+
+Each generation is recorded locally as a lightweight application record (`{title, company, date, score, gaps[]}`), keyed by a hash of the job description so regenerating the same job **updates** its record instead of double-counting. A **Recurring skill gaps** panel then aggregates the tags across all applications — `Kubernetes — 7/12`, `PHP — 4/12` — surfacing exactly where to invest learning time. A recurring "gap" you actually *have* is its own signal: it means your master sheet under-documents it.
+
+**Cost: effectively zero.** The gap tags are ~30–80 extra output tokens piggybacked onto the generation call you're already making; storage and aggregation are entirely client-side. No separate analysis call, no new permissions, all local.
 
 ---
 

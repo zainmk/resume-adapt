@@ -280,6 +280,37 @@ button:disabled { opacity: 0.4; cursor: default; }
 #result-section { margin-top: 28px; }
 #result-section .hint { margin: 8px 0 14px; }
 
+/* Recurring skill-gap panel (application-history aggregation) */
+.gaps {
+  margin-top: 18px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 14px;
+}
+.gaps > summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+#gaps-list { margin: 6px 0 10px; }
+.gap-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+}
+.gap-count {
+  flex: 0 0 auto;
+  min-width: 34px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+.gap-count.recurring { color: #e6c979; font-weight: 600; }
+.gap-label { color: var(--ink); font-size: 13px; }
+
 /* Match-assessment badge (self-scored fit vs the job description) */
 .match {
   display: flex;
