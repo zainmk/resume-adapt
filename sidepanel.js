@@ -12,10 +12,12 @@ const el = {
   mainFlow: document.getElementById("main-flow"),
   jdInput: document.getElementById("jd-input"),
   generateBtn: document.getElementById("generate-btn"),
+  clearBtn: document.getElementById("clear-btn"),
   genStatus: document.getElementById("gen-status"),
   errorBox: document.getElementById("error-box"),
   resultSection: document.getElementById("result-section"),
   regenerateBtn: document.getElementById("regenerate-btn"),
+  targetRole: document.getElementById("target-role"),
   matchBox: document.getElementById("match-box"),
   preview: document.getElementById("preview"),
   dlDocxBtn: document.getElementById("dl-docx-btn"),
@@ -63,11 +65,33 @@ async function restoreSession() {
   if (savedResume) {
     lastResume = savedResume;
     lastJobTitle = savedTitle || "Role";
-    renderPreview(savedResume);
+    renderTargetRole(savedResume.meta);
     renderMatch(savedResume.meta);
-    el.resultSection.hidden = false;
+    el.resultSection.hidden = false; // show first so the preview can measure width
+    renderPreview(savedResume);
   }
   renderGaps(await getApplications());
+}
+
+// Reset the current job description and everything generated from it. Confirms
+// first only when a generated resume would be discarded (regenerating costs an
+// API call). Recorded application history / recurring gaps are deliberately NOT
+// touched — those have their own "Clear application history" control.
+async function clearFlow() {
+  if (lastResume && !confirm("Clear the job description and discard the generated resume?")) {
+    return;
+  }
+  clearError();
+  el.jdInput.value = "";
+  lastResume = null;
+  lastJobTitle = "Role";
+  el.preview.textContent = "";
+  el.targetRole.hidden = true;
+  el.matchBox.hidden = true;
+  el.resultSection.hidden = true;
+  el.genStatus.textContent = "";
+  await chrome.storage.local.remove(["jdDraft", "lastResume", "lastJobTitle"]);
+  el.jdInput.focus();
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +191,21 @@ async function clearHistory() {
 // resume covers the job description (meta.match). Shown as a badge above the
 // preview; purely informational, a rough estimate.
 // ---------------------------------------------------------------------------
+// The role this resume was tailored to, as "Job Title @ Company" (company
+// omitted when the job description didn't name one). Both come from the
+// generation's meta; falls back to the job-title guess from the JD's first line.
+function renderTargetRole(meta) {
+  const m = meta || {};
+  const job = (m.job_title || lastJobTitle || "").trim();
+  const company = (m.company || "").trim();
+  if (!job && !company) {
+    el.targetRole.hidden = true;
+    return;
+  }
+  el.targetRole.textContent = company && job ? `${job} @ ${company}` : job || company;
+  el.targetRole.hidden = false;
+}
+
 function renderMatch(meta) {
   const m = meta && meta.match;
   if (!m || typeof m.score !== "number" || !isFinite(m.score)) {
@@ -254,9 +293,10 @@ async function generate() {
     lastJobTitle = deriveJobTitle(jd);
     await saveResult(resume, lastJobTitle);
     await recordApplication(jd, resume);
-    renderPreview(resume);
+    renderTargetRole(resume.meta);
     renderMatch(resume.meta);
-    el.resultSection.hidden = false;
+    el.resultSection.hidden = false; // show first so the preview can measure width
+    renderPreview(resume);
     el.genStatus.textContent = "";
   } catch (err) {
     el.genStatus.textContent = "";
@@ -287,8 +327,14 @@ function ensureHttp(u) {
 // ---------------------------------------------------------------------------
 function renderPreview(resume) {
   const S = RESUME_STYLES;
-  const root = el.preview;
-  root.textContent = "";
+  // Content is built into a fixed Letter-geometry "sheet" (612pt wide, 42pt
+  // margins → 528pt content column, matching the .docx renderer) so line
+  // wrapping resembles the real document. The sheet is scaled to fit the panel
+  // width via CSS zoom afterward.
+  el.preview.textContent = "";
+  const root = document.createElement("div");
+  root.className = "page-sheet";
+  el.preview.appendChild(root);
   root.style.fontFamily = S.fontPreview;
   root.style.color = S.bodyColor;
   root.style.fontSize = S.bodyPt + "pt";
@@ -543,6 +589,26 @@ function renderPreview(resume) {
       })
     );
   }
+
+  fitSheetWidth(root);
+}
+
+// ---------------------------------------------------------------------------
+// Sheet fit. Pure client-side, no API cost. The preview is laid out at true
+// Letter width so wrapping is realistic; we scale that sheet to fit the panel.
+// (Word-count and page-break gauges were removed: page-break estimation
+// couldn't match Word's real pagination, and a word-count target gave the user
+// less honest control than the model's own one/two-page sizing — see the README
+// "Where a prompt lever should not become a UI control" note.)
+// ---------------------------------------------------------------------------
+const PX_PER_PT = 96 / 72; // CSS: 1pt = 1.333px at 96dpi
+const SHEET_WIDTH_PT = 612; // Letter width
+
+function fitSheetWidth(sheet) {
+  const avail = el.preview.clientWidth - 4;
+  const naturalPx = SHEET_WIDTH_PT * PX_PER_PT;
+  const k = avail > 0 ? avail / naturalPx : 1;
+  sheet.style.zoom = k > 0.2 && k < 1 ? String(k) : "1";
 }
 
 // ---------------------------------------------------------------------------
@@ -592,13 +658,24 @@ el.preview.addEventListener("focusout", async (e) => {
   await saveResult(lastResume, lastJobTitle);
 });
 
+// Re-fit the sheet to the panel when the side panel is resized (page count and
+// break positions are geometry-fixed, so only the display scale changes).
+let fitRaf = null;
+window.addEventListener("resize", () => {
+  if (fitRaf) cancelAnimationFrame(fitRaf);
+  fitRaf = requestAnimationFrame(() => {
+    const sheet = el.preview.querySelector(".page-sheet");
+    if (sheet) fitSheetWidth(sheet);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Downloads
 // ---------------------------------------------------------------------------
 function sanitizeFilename(s) {
   return s.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim() || "Resume";
 }
-// Template: "Resume, <name> - <Job & Company>.<ext>". Job title and company
+// Template: "Resume, <name> - <Job @ Company>.<ext>". Job title and company
 // come from the generation's meta field (extracted from the job description);
 // falls back to the first-line-of-JD guess when meta is missing.
 function buildFilename(ext) {
@@ -606,7 +683,7 @@ function buildFilename(ext) {
   const meta = lastResume?.meta || {};
   const job = sanitizeFilename(meta.job_title || lastJobTitle);
   const company = meta.company ? sanitizeFilename(meta.company) : "";
-  const target = company ? `${job} & ${company}` : job;
+  const target = company ? `${job} @ ${company}` : job;
   return `Resume, ${who} - ${target}.${ext}`;
 }
 function downloadBlob(blob, filename) {
@@ -638,6 +715,7 @@ el.generateBtn.addEventListener("click", generate);
 el.regenerateBtn.addEventListener("click", generate);
 el.dlDocxBtn.addEventListener("click", downloadDocx);
 el.clearHistoryBtn.addEventListener("click", clearHistory);
+el.clearBtn.addEventListener("click", clearFlow);
 el.jdInput.addEventListener("input", saveDraft);
 
 checkReadiness();

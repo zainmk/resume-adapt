@@ -29,12 +29,13 @@
     <div id="main-flow">
       <section>
         <h2>Job description</h2>
-        <textarea id="jd-input" rows="9" placeholder="Paste the job description here&hellip;" spellcheck="false"></textarea>
+        <textarea id="jd-input" rows="9" placeholder="Paste the job title/description here&hellip;" spellcheck="false"></textarea>
       </section>
 
       <div class="row">
         <button id="generate-btn" class="primary" type="button">Generate</button>
         <span id="gen-status" class="status"></span>
+        <button id="clear-btn" class="link-btn clear-btn" type="button" title="Clear the job description and the generated result">Clear</button>
       </div>
 
       <p id="error-box" class="error" hidden></p>
@@ -44,6 +45,7 @@
           <h2>Preview</h2>
           <button id="regenerate-btn" class="link-btn" type="button">Regenerate</button>
         </div>
+        <div id="target-role" class="target-role" hidden></div>
         <div id="match-box" class="match" hidden></div>
         <p class="hint">Click any text to edit &mdash; changes save automatically and are included in the downloads. Blue titles open their link. Regenerate replaces your edits.</p>
         <div id="preview" class="preview"></div>

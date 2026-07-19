@@ -261,15 +261,24 @@ button:disabled { opacity: 0.4; cursor: default; }
 /* Preview — the generated resume rendered as a light "paper" sheet floating on
    the dark UI. Content sets its own dark text + blue accent inline, so the
    background stays light. Constrained + scrollable to fit inside the popup. */
+/* Scroll container; the paper "sheet" lives inside it at true Letter geometry. */
 .preview {
-  margin-top: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: #fbfbfc;
-  color: #1a1a1a;
-  padding: 24px 26px;
-  max-height: 55vh;
+  margin-top: 8px;
+  border: 1px solid var(--line-soft);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 12px;
+  max-height: 60vh;
   overflow: auto;
   border-radius: 10px;
+}
+.page-sheet {
+  position: relative;
+  width: 612pt;          /* Letter width; 42pt padding → 528pt content column */
+  padding: 42pt;
+  margin: 0 auto;
+  background: #fbfbfc;
+  color: #1a1a1a;
+  border-radius: 4px;
   box-shadow:
     0 8px 28px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(0, 0, 0, 0.3);
@@ -310,6 +319,18 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 .gap-count.recurring { color: #e6c979; font-weight: 600; }
 .gap-label { color: var(--ink); font-size: 13px; }
+
+/* "Clear" sits at the right edge of the Generate row */
+.clear-btn { margin-left: auto; }
+
+/* Target role this resume was tailored to — "Job Title @ Company" */
+.target-role {
+  margin-top: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
 
 /* Match-assessment badge (self-scored fit vs the job description) */
 .match {
@@ -391,7 +412,7 @@ details#inventory-details summary {
 .preview::-webkit-scrollbar,
 textarea::-webkit-scrollbar { width: 10px; height: 10px; }
 .preview::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.16);
   border-radius: 6px;
 }
 textarea::-webkit-scrollbar-thumb {

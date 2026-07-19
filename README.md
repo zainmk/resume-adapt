@@ -85,6 +85,24 @@ Each generation is recorded locally as a lightweight application record (`{title
 
 Every LLM call is billed by tokens, and this app is built around one asymmetry: **your career history is large and stable; the job description is small and changes every time.** ResumeAdapt is designed so you pay for the large stable part as rarely as possible, using **two independent caching layers**.
 
+### What it actually costs
+
+Rough per-operation estimates on **Claude Sonnet** pricing (~$3 / million input tokens, ~$15 / million output; 1-hour cache write ~2×, cache read ~0.1×). Actual figures depend on how large your master sheet is and how long each résumé runs — the real token counts for every call are logged to the DevTools console (`input / cache write / cache read / output`).
+
+| Operation | When | Approx. cost |
+|---|---|---|
+| **Ingest master sheet** | Once per master (re-run only on re-upload) | **~$0.05 – $0.15** |
+| **Generate résumé — first run of a session** | First job description after opening the panel | **~$0.05 – $0.07** |
+| **Generate résumé — each later run within the hour** | Every subsequent generation / regenerate | **~$0.02** |
+
+Why the shape:
+
+- **Ingestion** is output-dominated — reading the master is cheap, but emitting the ~4k-word structured inventory is ~5–6k output tokens at the higher output rate. It happens *once*.
+- **The first generation of a session** pays a one-time premium to *write* the system-prompt-plus-inventory prefix into the cache (~2× input on that span).
+- **Every generation after that**, within the 1-hour TTL, re-reads that prefix at ~10% price — so the recurring cost collapses to a small cache read + the fresh job description + the résumé output (~1–2k tokens). This is the ~25–30% per-run saving the caching layer buys.
+
+Practically: a full job search of, say, 40 tailored résumés from one master sheet runs on the order of **a dollar or two total**, not per résumé.
+
 ### 1. Application-level indexing (`chrome.storage.local`)
 
 The master sheet — potentially 30+ pages — is sent to the model **exactly once**, where it's distilled into a compact structured inventory (the index) and cached in the browser. Every future résumé is generated from that lightweight index; the original document is never re-sent. This is the single biggest lever: it turns a recurring large-document cost into a one-time cost.
@@ -104,6 +122,17 @@ ResumeAdapt orders every generation request to exploit this:
 
 The first generation of a session writes the prefix to cache (a one-time premium); every generation within the hour re-reads it at ~10% price — roughly a **25–30% saving on each subsequent run**. Because the cache key *is* the content, re-ingesting the master automatically invalidates it with no bookkeeping.
 
+### What prompt caching does *not* do — and why "cache my best résumés" can't be a feature
+
+Prompt caching stores **input processing, never output**. That one fact rules out a whole category of tempting cost features, so it's worth stating plainly:
+
+- **There is no response cache.** Every generation regenerates the résumé tokens at full output price — the output is the expensive part, and it is never reused. You never get a previously produced résumé back "for free" from the model.
+- **You can't cache "the best résumé for *software engineering*."** The intuitive idea — let the user pick a field, then cache the winning result per field to make calls cheaper — doesn't map onto how caching works. Caching reloads the *prefix's internal state*, not answers.
+- **A "field of employment" selector wouldn't lower cost either.** The inventory is *already* the single cached prefix, byte-identical across every field. Putting a field tag **before** the cache breakpoint would fragment the cache into a separate, re-paid entry per field; putting it **after** the breakpoint (where the job description lives) has no caching effect at all. Its own text is a few tokens — negligible — and it can't shrink the output tokens that dominate cost.
+- **The only true zero-cost reuse is identical-request reuse**, which is application-level, not model-level: the app already persists the last result and, in the recurring-gaps tracker, replaces a job's record on regeneration instead of paying twice. But résumés are tailored per job description, so reusing a generic cached one would defeat the tailoring that justifies the call.
+
+The lesson: prompt caching is a discount on *re-reading the same large input*, not a store of finished work. Design savings around what's genuinely re-read (the inventory), not around what you wish were reusable (the answers). A field selector, if ever added, would earn its place as a **relevance/steering** control on a multi-domain master sheet — not as a cost lever.
+
 ### Full list of cost strategies
 
 | # | Strategy | Effect |
@@ -120,6 +149,43 @@ The first generation of a session writes the prefix to cache (a one-time premium
 | 10 | **Anthropic prompt caching** | Stable prefix cached with a 1-hour TTL (see above); hits logged to the DevTools console. |
 
 **Known next lever (not yet implemented):** run *generation* on a smaller model (Haiku) while keeping *ingestion* on the more capable model — the generation prompt is intentionally prescriptive to make a smaller model viable (see [Model distillation](#engineering-notes)). Ingestion stays on the stronger model because the fact-selection phase is where a hallucination becomes a false claim on a résumé — a hard limit.
+
+---
+
+## Benchmarks
+
+### Cost
+
+Cost optimization is never free — most levers trade some quality, UX, or control for spend. These tables put the two side by side so the tradeoff is explicit. **Dollar figures are estimates** on Claude Sonnet pricing (~$3 / M input, ~$15 / M output; see [What it actually costs](#what-it-actually-costs)); real per-call token counts are logged to the DevTools console.
+
+**Shipped cost levers — and what each one costs in quality/UX.** Ratings: cost saving *(High / Medium / Low)*, quality impact *(None / Minor / Moderate / Negative)*.
+
+| Cost lever | Cost effect | Quality / UX effect | Verdict |
+|---|---|---|---|
+| **Ingest-once caching** (index the master a single time) | **High** — turns a recurring large-doc cost into a one-time ~$0.05–0.15 | **None** — every résumé uses the full distilled index | ✅ Kept |
+| **Distillation, not transcription** | **Medium** — smaller one-time output *and* smaller recurring input | **Minor** — drops verbatim prose/theory; keeps every fact & angle | ✅ Kept |
+| **Fixed ingestion output budget (~4k words)** | **Medium** — decouples cost from document size | **Minor** — a very large master compresses phrasing harder | ✅ Kept |
+| **Single-attempt ingestion** (no auto-retry) | **Medium** — never double-bills the most expensive call | **Tradeoff** — a transient failure needs a manual re-upload | ✅ Kept |
+| **Prompt caching** (KV, 1h TTL) | **Medium** — ~25–30%/run (cached run ~$0.02 vs ~$0.03) | **None** — output is regenerated identically | ✅ Kept |
+| **One call/gen + piggybacked meta** (match %, gaps) | **Low** — extras ride the same call, zero added requests | **None** — same output, richer JSON | ✅ Kept |
+| **Prompt-guided page length** (removed correction loop) | **Medium** — eliminates 1+ measurement/regeneration call per run | **Moderate** — exact page count not guaranteed; finalized in Word | ✅ Kept |
+| **Free local work** (inline edit, `.docx` render, session persist) | **Low** — edits/fixes cost $0, no regeneration | **None** — pure UX gain | ✅ Kept |
+| **Word-count target control** | ~free (a few extra tokens) | **Negative** — false precision under the truthfulness floor; undershoots and reads as broken | ↩︎ Reverted |
+| **Page-break preview estimate** | free (client-side) | **Negative** — couldn't match Word's real pagination; misleading | ✖ Removed |
+| **Haiku for generation** (candidate next lever) | **High** — ~5× cheaper generation | **Risk** — weaker instruction-following on the prescriptive gen prompt | ⏳ Not yet |
+
+**Alternatives compared — the architectural choices behind the current design.**
+
+| Option | Cost / run | Quality | Chosen? |
+|---|---|---|---|
+| **Sonnet + prompt caching** *(current)* | ~$0.02 cached · ~$0.05–0.07 first run | **High** — strong truthful selection & instruction-following | ✅ |
+| Haiku + prompt caching | ~5× cheaper generation | Medium — fidelity/selection risk on a résumé's hard truth constraint | Candidate next lever |
+| Local / on-device open model | ~$0 marginal | Low & uneven — weaker output, heavier setup, no cache economics | No |
+| No caching (re-send inventory each run) | ~$0.03 (~25–30% more) | Identical | No |
+| Re-ingest the master every generation | Very high — full document every run | Identical | No — the anti-pattern this app is built to avoid |
+| Measurement + corrective regeneration for exact pages | +1 or more calls/run | Marginally better page fit | No — reverted for cost; Word does it free |
+
+*Reading the tables:* the biggest wins (ingest-once, caching) cost **nothing** in quality — they're pure architecture. The levers that *do* cost quality are accepted only where the loss is minor and recoverable (length is finalized in Word; a failed ingest is re-run). The two **Negative** rows are the counter-examples — features whose savings weren't worth the quality/clarity cost, so they were pulled (see [Not every prompt lever should become a UI control](#engineering-notes)).
 
 ---
 
@@ -161,6 +227,7 @@ The first generation of a session writes the prefix to cache (a one-time premium
 - **Prompt decomposition.** Qualitative asks ("sound more professional") are hard to control or verify, because the model's baseline for the quality is itself fuzzy. Instructions are broken into concrete, checkable rules instead.
 - **Hallucination is a hard limit.** In a résumé generator, a hallucination is a *false claim about the candidate*. The system enforces truthfulness structurally — inventory-only grounding, a human audit panel, and an editable preview — and reserves the most capable model for the quality-critical selection phase.
 - **Cheap reversibility.** Work is committed per feature with clear context; reverting a commit is cheaper and more reliable than prompting a model to undo a change mid-development.
+- **Not every prompt lever should become a UI control (word count vs. page count).** A parameter inside the prompt is only worth exposing to the user if the model can actually *honor* it within the system's hard constraints. A **target word count** looked like finer-grained control than "one page or two," so it was built as a numeric input. In practice it gave *less* real control: truthfulness is a hard floor here — the model is forbidden from padding with invented content — so an arbitrary word target (e.g. 550) is only a soft ceiling, and the resume stops wherever the candidate's *real, relevant* material runs out (often well short, e.g. 379/550). The knob implied a precision the realism constraint can't deliver, which reads to the user as the feature being broken. **Page count is the coarser but honest granularity:** "commit to a full one or two pages" is something the model *can* satisfy by selecting and trimming truthful material, and it matches how résumés are actually judged. So the word-count control was reverted back to prompt-driven one/two-page sizing. The general principle: when a hard constraint (truthfulness) dominates an output dimension, expose the axis at the granularity the model can guarantee — not the finest axis you can technically parameterize.
 
 ---
 
