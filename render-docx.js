@@ -189,9 +189,19 @@ function resumeJsonToDocx(resume, styles) {
   if (Array.isArray(resume.education) && resume.education.length) {
     children.push(sectionHeader("Education"));
     resume.education.forEach((edu) => {
-      const left = [{ text: edu.institution || "", bold: true }];
-      if (edu.degree) left.push({ text: " — " + edu.degree });
-      children.push(entryHeading(left, edu.dates || ""));
+      // Support degrees[] (dual/double degree); fall back to a single degree.
+      const degrees = Array.isArray(edu.degrees) && edu.degrees.length
+        ? edu.degrees.filter(Boolean)
+        : edu.degree ? [edu.degree] : [];
+      if (degrees.length > 1) {
+        // One institution, multiple degrees: heading + each degree as a bullet.
+        children.push(entryHeading([{ text: edu.institution || "", bold: true }], edu.dates || ""));
+        degrees.forEach((d) => children.push(bulletParagraph(d)));
+      } else {
+        const left = [{ text: edu.institution || "", bold: true }];
+        if (degrees[0]) left.push({ text: " — " + degrees[0] });
+        children.push(entryHeading(left, edu.dates || ""));
+      }
       if (edu.details) children.push(bodyParagraph(edu.details));
     });
   }

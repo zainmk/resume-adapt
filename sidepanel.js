@@ -540,12 +540,22 @@ function renderPreview(resume) {
   if (Array.isArray(resume.education) && resume.education.length) {
     root.appendChild(sectionHeader("Education"));
     resume.education.forEach((edu) => {
-      const segs = [{ text: edu.institution || "", bold: true }];
-      if (edu.degree) {
-        segs.push({ sep: " — " });
-        segs.push({ text: edu.degree });
+      // Support degrees[] (dual/double degree); fall back to a single degree.
+      const degrees = Array.isArray(edu.degrees) && edu.degrees.length
+        ? edu.degrees.filter(Boolean)
+        : edu.degree ? [edu.degree] : [];
+      if (degrees.length > 1) {
+        // One institution, multiple degrees: heading + each degree as a bullet.
+        root.appendChild(entryHeading([{ text: edu.institution || "", bold: true }], { text: edu.dates || "" }));
+        root.appendChild(bulletList(degrees.length, (j) => ({ text: degrees[j] })));
+      } else {
+        const segs = [{ text: edu.institution || "", bold: true }];
+        if (degrees[0]) {
+          segs.push({ sep: " — " });
+          segs.push({ text: degrees[0] });
+        }
+        root.appendChild(entryHeading(segs, { text: edu.dates || "" }));
       }
-      root.appendChild(entryHeading(segs, { text: edu.dates || "" }));
       if (edu.details) {
         const p = div({ margin: "1pt 0" });
         p.textContent = edu.details;

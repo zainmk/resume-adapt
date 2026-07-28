@@ -19,9 +19,11 @@ Keep every entry atomic and specific; do not merge distinct accomplishments, and
 
 LOCATION & RELOCATION: record the candidate's current home location in contact.location (e.g. "Calgary, AB"). If the document states any openness to relocation (for example "open to relocation", "willing to relocate", "open to relocating anywhere in Canada", or a specific region), record that willingness — including any stated scope or regional limits — in contact.relocation. Omit contact.relocation entirely if the document says nothing about relocating; never assume willingness that isn't written.
 
+EDUCATION: keep each institution as ONE education entry. If an institution awarded more than one degree (a dual, double, or combined degree), record EVERY degree in that entry's degrees[] array — one string per degree, kept faithful to how it is written (e.g. "BESc. (Bachelor of Engineering Science) in Mechatronics Systems Engineering"). Never split a single institution into multiple entries, and never merge two distinct degrees into one string. Do not invent a "dual degree" / "double degree" label or program note that the document does not actually state.
+
 OUTPUT BUDGET: the complete inventory must comfortably fit within about 4,000 words of JSON, no matter how large the source document is. If the document is very large, compress harder — shorter phrases, fewer redundant details[] entries — rather than growing the output. An output that gets cut off mid-JSON is worthless, so staying within budget takes priority over exhaustive phrasing (but never drop a distinct fact or angle entirely; compress its wording instead).
 
-Respond with ONLY valid JSON, no markdown fences, using keys: name, contact {email, phone, location, relocation, links[]}, experience[] {company, title, location, dates, url, responsibilities[], achievements[], tools[], keywords[], details[]}, projects[] {name, description, domain, url, responsibilities[], achievements[], tools[], keywords[], details[]}, skills[], education[] {institution, degree, dates, details}, certifications[] {name, url}, other[]. In responsibilities[] and achievements[], use short factual phrases; details[] holds concrete resume-relevant facts that don't fit the other fields — keep it short, never prose.`;
+Respond with ONLY valid JSON, no markdown fences, using keys: name, contact {email, phone, location, relocation, links[]}, experience[] {company, title, location, dates, url, responsibilities[], achievements[], tools[], keywords[], details[]}, projects[] {name, description, domain, url, responsibilities[], achievements[], tools[], keywords[], details[]}, skills[], education[] {institution, degrees[], dates, details}, certifications[] {name, url}, other[]. In responsibilities[] and achievements[], use short factual phrases; details[] holds concrete resume-relevant facts that don't fit the other fields — keep it short, never prose.`;
 
 const GENERATION_SYSTEM_PROMPT = `You are a resume-tailoring engine. You receive a candidate's experience
 inventory (structured JSON derived from their master document) and a job
@@ -113,7 +115,7 @@ before or after. Exactly this schema:
                     "url": string, "bullets": [string] } ],
   "projects": [ { "name": string, "description": string,
                   "url": string, "bullets": [string] } ],
-  "education": [ { "institution": string, "degree": string,
+  "education": [ { "institution": string, "degrees": [string],
                    "dates": string, "details": string } ],
   "certifications": [ { "name": string, "url": string } ]
 }
@@ -159,6 +161,17 @@ the inventory doesn't state, never invent a job location, and respect any limits
 in the stated willingness (e.g. only relocate within certain regions — if the
 job's location is outside that scope, do not offer relocation). If the inventory
 has no location, omit "contact.location".
+
+EDUCATION: Keep each institution as a SINGLE education entry, and list every
+degree it granted in "degrees" (one string per degree, faithful to the
+inventory's wording). When one institution awarded multiple degrees (a dual,
+double, or combined-degree program), they belong in ONE entry with two entries
+in "degrees" — never split the institution into separate entries, never
+duplicate the institution, and never merge the two degrees into a single string.
+Do NOT add a "dual degree" / "double degree" label or any program note that is
+not written in the inventory — the two listed degrees already convey it.
+"details" carries only genuine inventory specifics (honors, relevant coursework,
+GPA), or is omitted.
 
 LINKS: For an experience, project, or certification, if the inventory has one
 or more URLs associated with that entry, set "url" to the FIRST such URL so it
