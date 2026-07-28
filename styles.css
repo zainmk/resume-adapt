@@ -354,19 +354,6 @@ button:disabled { opacity: 0.4; cursor: default; }
 .match-score.low { color: #e89090; }
 .match-text { color: var(--mid); font-size: 12.5px; }
 
-/* Inline-editable preview fields (light "paper" context, so accent-tinted) */
-.preview .ed {
-  border-radius: 3px;
-  outline: none;
-  cursor: text;
-  transition: background 0.12s, box-shadow 0.12s;
-}
-.preview .ed:hover { background: rgba(26, 79, 139, 0.07); }
-.preview .ed:focus {
-  background: #ffffff;
-  box-shadow: 0 0 0 2px rgba(26, 79, 139, 0.35);
-}
-
 /* Settings page input flex */
 body.options input { flex: 1; }
 

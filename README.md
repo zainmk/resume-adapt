@@ -34,16 +34,16 @@ crossing the truthfulness line — because I built it to use for my own job sear
 
 1. **Ingest once.** Drop in a master sheet (`.pdf` or `.docx`) containing everything you've ever done. It's read a single time and distilled into a compact, structured **experience inventory** cached locally.
 2. **Generate per job.** Paste a job description; the model selects the relevant experience from the inventory, rewrites it in the posting's own terminology (ATS keyword matching), and returns a structured résumé.
-3. **Review & download.** Edit any text inline in the live preview, then download a styled `.docx` (finalize length/layout in Word).
+3. **Review & download.** Check the live preview (and the "View parsed data" audit panel to confirm nothing was invented), then download a styled `.docx` and finalize length/layout in Word.
 
 The core guarantee: **it never invents.** Every fact on the résumé traces back to your master sheet; the model selects and rephrases, but does not fabricate employers, titles, dates, metrics, or skills.
 
 ## Highlights
 
 - **Two-phase LLM pipeline** — a one-time *ingestion* pass (document → structured index) decoupled from cheap, repeatable *generation* passes (index + job description → résumé).
-- **Truthfulness by construction** — inventory-only grounding, a "View parsed data" audit panel, and a fully editable preview that writes straight back into the résumé JSON.
+- **Truthfulness by construction** — inventory-only grounding, a "View parsed data" audit panel, and a preview rendered from the same résumé JSON as the download so what you see is what ships.
 - **Cost-minimizing by design** — application-level indexing + model-level prompt caching mean cost scales with the *small* changing input (the job description), not the *large* stable one (your career history). See [Cost engineering](#cost-engineering).
-- **Live editing** — click any text in the preview to edit; changes auto-save and flow into the download. Blue titles are clickable links to the underlying project/company URL.
+- **Faithful preview** — the side-panel preview is rendered from the same résumé JSON as the `.docx`, laid out at true Letter width. Blue company, project, and certification names are clickable links to their URL.
 - **Match assessment** — each generation returns a self-scored `%` fit against the job description, with short notes on the strongest alignment and the biggest gap.
 - **Recurring skill-gap tracking** — the model also emits the normalized requirements a job asks for that your master sheet doesn't cover; these are aggregated across every application into a "these keep coming up" panel, turning per-job feedback into a strategic *skills-to-build* signal. Rides the existing generation call — no extra API cost. See [Career-signal tracking](#career-signal-tracking-recurring-gaps).
 - **Side-panel UX** — lives in Chrome's side panel, so it stays open while you read the job posting in another tab; session state (draft + last result) persists across open/close.
@@ -145,7 +145,7 @@ The lesson: prompt caching is a discount on *re-reading the same large input*, n
 | 6 | **One call per generation, piggybacked extras** | Filename metadata and the match-score are extra JSON fields on the same call, not separate requests. |
 | 7 | **Prompt guidance over measurement loops** | Page length is steered by the prompt; an earlier corrective-regeneration loop was removed — final layout is tuned free-of-cost in Word. |
 | 8 | **No per-generation fetching** | Linked project pages are treated as inert data, not fetched at generation time. |
-| 9 | **Free local work** | Inline edits, `.docx` rendering, and session persistence all happen client-side — no regeneration to fix a word. |
+| 9 | **Free local work** | Preview rendering, `.docx` generation, and session persistence all happen client-side — no API round-trips for anything but generation. |
 | 10 | **Anthropic prompt caching** | Stable prefix cached with a 1-hour TTL (see above); hits logged to the DevTools console. |
 
 **Known next lever (not yet implemented):** run *generation* on a smaller model (Haiku) while keeping *ingestion* on the more capable model — the generation prompt is intentionally prescriptive to make a smaller model viable (see [Model distillation](#engineering-notes)). Ingestion stays on the stronger model because the fact-selection phase is where a hallucination becomes a false claim on a résumé — a hard limit.
@@ -169,7 +169,7 @@ Cost optimization is never free — most levers trade some quality, UX, or contr
 | **Prompt caching** (KV, 1h TTL) | **Medium** — ~25–30%/run (cached run ~$0.02 vs ~$0.03) | **None** — output is regenerated identically | ✅ Kept |
 | **One call/gen + piggybacked meta** (match %, gaps) | **Low** — extras ride the same call, zero added requests | **None** — same output, richer JSON | ✅ Kept |
 | **Prompt-guided page length** (removed correction loop) | **Medium** — eliminates 1+ measurement/regeneration call per run | **Moderate** — exact page count not guaranteed; finalized in Word | ✅ Kept |
-| **Free local work** (inline edit, `.docx` render, session persist) | **Low** — edits/fixes cost $0, no regeneration | **None** — pure UX gain | ✅ Kept |
+| **Free local work** (preview render, `.docx` render, session persist) | **Low** — no API round-trips outside generation | **None** — pure UX gain | ✅ Kept |
 | **Word-count target control** | ~free (a few extra tokens) | **Negative** — false precision under the truthfulness floor; undershoots and reads as broken | ↩︎ Reverted |
 | **Page-break preview estimate** | free (client-side) | **Negative** — couldn't match Word's real pagination; misleading | ✖ Removed |
 | **Haiku for generation** (candidate next lever) | **High** — ~5× cheaper generation | **Risk** — weaker instruction-following on the prescriptive gen prompt | ⏳ Not yet |
@@ -203,7 +203,7 @@ Cost optimization is never free — most levers trade some quality, UX, or contr
 2. Drop in your master sheet (`.pdf`/`.docx`). It's ingested once and cached.
 3. Optionally open **"View parsed data"** to confirm exactly what was captured (nothing is invented).
 
-**Generate:** paste a job description → **Generate** → edit inline as needed → **Download .docx**. **Regenerate** re-runs; the side panel persists your draft and last result across open/close.
+**Generate:** paste a job description → **Generate** → review the preview → **Download .docx** and finalize in Word. **Regenerate** re-runs; the side panel persists your draft and last result across open/close.
 
 ---
 
@@ -290,7 +290,7 @@ After uploading, open **Settings → "View parsed data"** to confirm exactly wha
 
 | File | Role |
 |---|---|
-| `sidepanel.html` / `sidepanel.js` | The panel: job description in, tailored résumé out (preview, inline editing, match badge, download). Reads the cached inventory + key; persists session state. |
+| `sidepanel.html` / `sidepanel.js` | The panel: job description in, tailored résumé out (preview, match badge, recurring-gap tracking, download). Reads the cached inventory + key; persists session state. |
 | `options.html` / `options.js` | Settings: API key, master-sheet upload/ingestion, and the parsed-data audit view. |
 | `background.js` | Minimal service worker — opens the side panel on toolbar click. |
 | `shared.js` | API layer (calls, prompt caching, timeouts, error mapping), storage helpers, shared style tokens. |
@@ -304,7 +304,7 @@ After uploading, open **Settings → "View parsed data"** to confirm exactly wha
 - **Model distillation.** A higher-capability model was used to *author* the hardcoded prompts and instruction sets; a balanced production model applies them at runtime. This front-loads reasoning into fixed instructions, which is what makes a smaller/cheaper runtime model viable.
 - **Schemas as a control surface.** Intermediate JSON schemas bridge the LLM's dynamic output to the app's static rendering — and act as a stronger constraint on the model than any prose instruction.
 - **Prompt decomposition.** Qualitative asks ("sound more professional") are hard to control or verify, because the model's baseline for the quality is itself fuzzy. Instructions are broken into concrete, checkable rules instead.
-- **Hallucination is a hard limit.** In a résumé generator, a hallucination is a *false claim about the candidate*. The system enforces truthfulness structurally — inventory-only grounding, a human audit panel, and an editable preview — and reserves the most capable model for the quality-critical selection phase.
+- **Hallucination is a hard limit.** In a résumé generator, a hallucination is a *false claim about the candidate*. The system enforces truthfulness structurally — inventory-only grounding and a human audit panel ("View parsed data") — and reserves the most capable model for the quality-critical selection phase.
 - **Cheap reversibility.** Work is committed per feature with clear context; reverting a commit is cheaper and more reliable than prompting a model to undo a change mid-development.
 - **Not every prompt lever should become a UI control (word count vs. page count).** A parameter inside the prompt is only worth exposing to the user if the model can actually *honor* it within the system's hard constraints. A **target word count** looked like finer-grained control than "one page or two," so it was built as a numeric input. In practice it gave *less* real control: truthfulness is a hard floor here — the model is forbidden from padding with invented content — so an arbitrary word target (e.g. 550) is only a soft ceiling, and the resume stops wherever the candidate's *real, relevant* material runs out (often well short, e.g. 379/550). The knob implied a precision the realism constraint can't deliver, which reads to the user as the feature being broken. **Page count is the coarser but honest granularity:** "commit to a full one or two pages" is something the model *can* satisfy by selecting and trimming truthful material, and it matches how résumés are actually judged. So the word-count control was reverted back to prompt-driven one/two-page sizing. The general principle: when a hard constraint (truthfulness) dominates an output dimension, expose the axis at the granularity the model can guarantee — not the finest axis you can technically parameterize.
 

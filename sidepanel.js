@@ -348,12 +348,9 @@ function ensureHttp(u) {
 
 // ---------------------------------------------------------------------------
 // HTML preview — built with DOM APIs (no innerHTML with model output),
-// styled from the same RESUME_STYLES tokens as the .docx/.pdf renderers.
-//
-// Inline editing: most text carries a data-path back into the lastResume JSON
-// and is contenteditable. Edits are written back on blur and persisted, so the
-// downloads (rendered from the same JSON) include them. Linked (blue) titles
-// stay clickable links and are not inline-editable.
+// styled from the same RESUME_STYLES tokens as the .docx renderer, so the
+// preview mirrors the download. Read-only; company/project/certification names
+// with a URL render as clickable accent-colored links.
 // ---------------------------------------------------------------------------
 function renderPreview(resume) {
   const S = RESUME_STYLES;
@@ -381,24 +378,12 @@ function renderPreview(resume) {
     Object.assign(s.style, styles);
     return s;
   };
-  // Marks a node as inline-editable, bound to a JSON path in lastResume.
-  // `join` makes the committed text split back into an array (skills items).
-  const editable = (node, path, join) => {
-    node.contentEditable = "true";
-    node.spellcheck = false;
-    node.dataset.path = path;
-    if (join) node.dataset.join = join;
-    node.classList.add("ed");
-    return node;
-  };
-
   const nameEl = div({ fontSize: S.namePt + "pt", fontWeight: "700", color: S.accentColor });
   nameEl.textContent = resume.name || "";
-  editable(nameEl, "name");
   root.appendChild(nameEl);
 
   // Contact line — links render with the protocol/www stripped for display but
-  // keep the full URL as the click target. Not inline-editable (composite).
+  // keep the full URL as the click target.
   const c = resume.contact || {};
   const contactNodes = [];
   // location may carry a relocation note, e.g. "Calgary, AB | Open to Relocating Vancouver, BC"
@@ -451,8 +436,8 @@ function renderPreview(resume) {
     return a;
   };
 
-  // Heading row from segments: {text, path?, bold?, url?} or {sep}. Linked
-  // segments render as anchors (not editable); pathed segments are editable.
+  // Heading row from segments: {text, bold?, url?} or {sep}. A segment with a
+  // url renders as an accent-colored link.
   const entryHeading = (segments, right) => {
     const row = div({
       display: "flex",
@@ -468,29 +453,20 @@ function renderPreview(resume) {
         return;
       }
       const styles = seg.bold ? { fontWeight: "700" } : {};
-      if (seg.url) {
-        left.appendChild(linkedText(seg.text, seg.url, styles));
-      } else {
-        const s = span(seg.text, styles);
-        if (seg.path) editable(s, seg.path);
-        left.appendChild(s);
-      }
+      left.appendChild(seg.url ? linkedText(seg.text, seg.url, styles) : span(seg.text, styles));
     });
     row.appendChild(left);
     if (right && right.text) {
-      const r = span(right.text, {
+      row.appendChild(span(right.text, {
         color: S.mutedColor,
         fontSize: S.smallPt + "pt",
         whiteSpace: "nowrap",
-      });
-      if (right.path) editable(r, right.path);
-      row.appendChild(r);
+      }));
     }
     return row;
   };
 
-  // Bullet list; entryFor(index) -> {text, url?, path?}. Linked items are
-  // anchors; pathed items are editable.
+  // Bullet list; entryFor(index) -> {text, url?}. A url renders as a link.
   const bulletList = (count, entryFor) => {
     const ul = document.createElement("ul");
     Object.assign(ul.style, { margin: "1pt 0 4pt", paddingLeft: "16pt" });
@@ -498,13 +474,7 @@ function renderPreview(resume) {
       const info = entryFor(j);
       const li = document.createElement("li");
       li.style.marginBottom = "1pt";
-      if (info.url) {
-        li.appendChild(linkedText(info.text, info.url));
-      } else {
-        const s = span(info.text);
-        if (info.path) editable(s, info.path);
-        li.appendChild(s);
-      }
+      li.appendChild(info.url ? linkedText(info.text, info.url) : span(info.text));
       ul.appendChild(li);
     }
     return ul;
@@ -514,92 +484,71 @@ function renderPreview(resume) {
     root.appendChild(sectionHeader("Summary"));
     const p = div({ margin: "2pt 0" });
     p.textContent = resume.summary;
-    editable(p, "summary");
     root.appendChild(p);
   }
 
   if (Array.isArray(resume.skills) && resume.skills.length) {
     root.appendChild(sectionHeader("Skills"));
-    resume.skills.forEach((group, i) => {
+    resume.skills.forEach((group) => {
       const line = div({ margin: "1pt 0" });
       if (group.category) {
-        const cat = span(group.category, { fontWeight: "700" });
-        editable(cat, `skills.${i}.category`);
-        line.appendChild(cat);
+        line.appendChild(span(group.category, { fontWeight: "700" }));
         line.appendChild(span(":  ", { fontWeight: "700" }));
       }
-      const items = span((group.items || []).join(", "));
-      editable(items, `skills.${i}.items`, ",");
-      line.appendChild(items);
+      line.appendChild(span((group.items || []).join(", ")));
       root.appendChild(line);
     });
   }
 
   if (Array.isArray(resume.experience) && resume.experience.length) {
     root.appendChild(sectionHeader("Experience"));
-    resume.experience.forEach((role, i) => {
-      const segs = [
-        { text: role.title || "", bold: true, url: role.url, path: `experience.${i}.title` },
-      ];
+    resume.experience.forEach((role) => {
+      // The company URL hyperlinks the company NAME (not the job title).
+      const segs = [{ text: role.title || "", bold: true }];
       if (role.company) {
         segs.push({ sep: " — " });
-        segs.push({ text: role.company, path: `experience.${i}.company` });
+        segs.push({ text: role.company, url: role.url });
       }
       if (role.location) {
         segs.push({ sep: " · " });
-        segs.push({ text: role.location, path: `experience.${i}.location` });
+        segs.push({ text: role.location });
       }
-      root.appendChild(entryHeading(segs, { text: role.dates || "", path: `experience.${i}.dates` }));
+      root.appendChild(entryHeading(segs, { text: role.dates || "" }));
       const bullets = role.bullets || [];
       if (bullets.length) {
-        root.appendChild(
-          bulletList(bullets.length, (j) => ({
-            text: bullets[j],
-            path: `experience.${i}.bullets.${j}`,
-          }))
-        );
+        root.appendChild(bulletList(bullets.length, (j) => ({ text: bullets[j] })));
       }
     });
   }
 
   if (Array.isArray(resume.projects) && resume.projects.length) {
     root.appendChild(sectionHeader("Projects"));
-    resume.projects.forEach((proj, i) => {
-      const segs = [
-        { text: proj.name || "", bold: true, url: proj.url, path: `projects.${i}.name` },
-      ];
+    resume.projects.forEach((proj) => {
+      const segs = [{ text: proj.name || "", bold: true, url: proj.url }];
       if (proj.description) {
         segs.push({ sep: " — " });
-        segs.push({ text: proj.description, path: `projects.${i}.description` });
+        segs.push({ text: proj.description });
       }
       root.appendChild(entryHeading(segs, null));
       const bullets = proj.bullets || [];
       if (bullets.length) {
-        root.appendChild(
-          bulletList(bullets.length, (j) => ({
-            text: bullets[j],
-            path: `projects.${i}.bullets.${j}`,
-          }))
-        );
+        root.appendChild(bulletList(bullets.length, (j) => ({ text: bullets[j] })));
       }
     });
   }
 
   if (Array.isArray(resume.education) && resume.education.length) {
     root.appendChild(sectionHeader("Education"));
-    resume.education.forEach((edu, i) => {
-      const segs = [
-        { text: edu.institution || "", bold: true, path: `education.${i}.institution` },
-      ];
+    resume.education.forEach((edu) => {
+      const segs = [{ text: edu.institution || "", bold: true }];
       if (edu.degree) {
         segs.push({ sep: " — " });
-        segs.push({ text: edu.degree, path: `education.${i}.degree` });
+        segs.push({ text: edu.degree });
       }
-      root.appendChild(entryHeading(segs, { text: edu.dates || "", path: `education.${i}.dates` }));
+      root.appendChild(entryHeading(segs, { text: edu.dates || "" }));
       if (edu.details) {
         const p = div({ margin: "1pt 0" });
         p.textContent = edu.details;
-        editable(p, `education.${i}.details`);
         root.appendChild(p);
       }
     });
@@ -610,13 +559,8 @@ function renderPreview(resume) {
     root.appendChild(
       bulletList(resume.certifications.length, (j) => {
         const cert = resume.certifications[j];
-        const isString = typeof cert === "string";
-        const cObj = isString ? { name: cert } : cert || {};
-        return {
-          text: cObj.name || "",
-          url: cObj.url,
-          path: isString ? `certifications.${j}` : `certifications.${j}.name`,
-        };
+        const cObj = typeof cert === "string" ? { name: cert } : cert || {};
+        return { text: cObj.name || "", url: cObj.url };
       })
     );
   }
@@ -642,55 +586,8 @@ function fitSheetWidth(sheet) {
   sheet.style.zoom = k > 0.2 && k < 1 ? String(k) : "1";
 }
 
-// ---------------------------------------------------------------------------
-// Inline-edit plumbing — delegated on the preview container. Committed text is
-// written back into lastResume at the element's data-path and persisted, so
-// downloads pick the edits up. Enter commits, Escape reverts.
-// ---------------------------------------------------------------------------
-function setByPath(obj, path, value) {
-  const keys = path.split(".");
-  let o = obj;
-  for (let i = 0; i < keys.length - 1; i++) {
-    const k = /^\d+$/.test(keys[i]) ? Number(keys[i]) : keys[i];
-    if (o == null || o[k] == null) return;
-    o = o[k];
-  }
-  const last = keys[keys.length - 1];
-  o[/^\d+$/.test(last) ? Number(last) : last] = value;
-}
-
-el.preview.addEventListener("focusin", (e) => {
-  const t = e.target;
-  if (t.dataset && t.dataset.path) t.dataset.orig = t.textContent;
-});
-
-el.preview.addEventListener("keydown", (e) => {
-  const t = e.target;
-  if (!t.dataset || !t.dataset.path) return;
-  if (e.key === "Enter") {
-    e.preventDefault();
-    t.blur();
-  } else if (e.key === "Escape") {
-    t.textContent = t.dataset.orig ?? t.textContent;
-    t.blur();
-  }
-});
-
-el.preview.addEventListener("focusout", async (e) => {
-  const t = e.target;
-  if (!t.dataset || !t.dataset.path || !lastResume) return;
-  const text = (t.textContent || "").replace(/\s+/g, " ").trim();
-  if (text === (t.dataset.orig ?? "")) return;
-  t.textContent = text; // normalize whatever contenteditable left behind
-  const value = t.dataset.join
-    ? text.split(t.dataset.join).map((s) => s.trim()).filter(Boolean)
-    : text;
-  setByPath(lastResume, t.dataset.path, value);
-  await saveResult(lastResume, lastJobTitle);
-});
-
-// Re-fit the sheet to the panel when the side panel is resized (page count and
-// break positions are geometry-fixed, so only the display scale changes).
+// Re-fit the sheet to the panel when the side panel is resized (geometry is
+// fixed, so only the display scale changes).
 let fitRaf = null;
 window.addEventListener("resize", () => {
   if (fitRaf) cancelAnimationFrame(fitRaf);

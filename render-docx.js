@@ -93,21 +93,24 @@ function resumeJsonToDocx(resume, styles) {
     });
   }
 
-  // Heading line with right-aligned dates via a right tab stop. `url`, if set,
-  // makes the bold title text itself the clickable link (accent-colored).
-  function entryHeading(leftBold, leftPlain, right, url) {
-    const titleRun = new D.TextRun({
-      text: leftBold,
-      bold: true,
-      size: halfPt(styles.bodyPt),
-      ...(url ? { color: accent } : {}),
+  // Heading line with right-aligned dates via a right tab stop. `left` is an
+  // array of { text, bold?, url? } segments; a segment with `url` renders as an
+  // accent-colored external hyperlink on that segment's text (so the link can
+  // sit on the company name, the project name, etc. — not necessarily the title).
+  function entryHeading(left, right) {
+    const runs = [];
+    left.forEach((seg) => {
+      if (!seg.text) return;
+      const run = new D.TextRun({
+        text: seg.text,
+        bold: !!seg.bold,
+        size: halfPt(styles.bodyPt),
+        ...(seg.url ? { color: accent } : {}),
+      });
+      runs.push(
+        seg.url ? new D.ExternalHyperlink({ link: ensureHttp(seg.url), children: [run] }) : run
+      );
     });
-    const runs = [
-      url ? new D.ExternalHyperlink({ link: ensureHttp(url), children: [titleRun] }) : titleRun,
-    ];
-    if (leftPlain) {
-      runs.push(new D.TextRun({ text: leftPlain, size: halfPt(styles.bodyPt) }));
-    }
     if (right) {
       runs.push(
         new D.TextRun({ text: "\t" + right, color: muted, size: halfPt(styles.smallPt) })
@@ -153,10 +156,19 @@ function resumeJsonToDocx(resume, styles) {
   if (Array.isArray(resume.experience) && resume.experience.length) {
     children.push(sectionHeader("Experience"));
     resume.experience.forEach((role) => {
-      const companyBits = [role.company, role.location].filter(Boolean).join(" · ");
-      children.push(
-        entryHeading(role.title || "", companyBits ? " — " + companyBits : "", role.dates || "", role.url)
-      );
+      // The company URL hyperlinks the company NAME (not the job title).
+      const left = [{ text: role.title || "", bold: true }];
+      const bits = [];
+      if (role.company) bits.push({ text: role.company, url: role.url });
+      if (role.location) bits.push({ text: role.location });
+      if (bits.length) {
+        left.push({ text: " — " });
+        bits.forEach((b, i) => {
+          if (i) left.push({ text: " · " });
+          left.push(b);
+        });
+      }
+      children.push(entryHeading(left, role.dates || ""));
       (role.bullets || []).forEach((b) => children.push(bulletParagraph(b)));
     });
   }
@@ -165,9 +177,10 @@ function resumeJsonToDocx(resume, styles) {
   if (Array.isArray(resume.projects) && resume.projects.length) {
     children.push(sectionHeader("Projects"));
     resume.projects.forEach((proj) => {
-      children.push(
-        entryHeading(proj.name || "", proj.description ? " — " + proj.description : "", "", proj.url)
-      );
+      // For projects the link belongs on the project NAME (it is the subject).
+      const left = [{ text: proj.name || "", bold: true, url: proj.url }];
+      if (proj.description) left.push({ text: " — " + proj.description });
+      children.push(entryHeading(left, ""));
       (proj.bullets || []).forEach((b) => children.push(bulletParagraph(b)));
     });
   }
@@ -176,13 +189,9 @@ function resumeJsonToDocx(resume, styles) {
   if (Array.isArray(resume.education) && resume.education.length) {
     children.push(sectionHeader("Education"));
     resume.education.forEach((edu) => {
-      children.push(
-        entryHeading(
-          edu.institution || "",
-          edu.degree ? " — " + edu.degree : "",
-          edu.dates || ""
-        )
-      );
+      const left = [{ text: edu.institution || "", bold: true }];
+      if (edu.degree) left.push({ text: " — " + edu.degree });
+      children.push(entryHeading(left, edu.dates || ""));
       if (edu.details) children.push(bodyParagraph(edu.details));
     });
   }
