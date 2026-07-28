@@ -12,7 +12,12 @@ const el = {
   masterStatus: document.getElementById("master-status"),
   masterSpinner: document.getElementById("master-spinner"),
   inventoryDetails: document.getElementById("inventory-details"),
-  inventoryView: document.getElementById("inventory-view"),
+  inventoryEdit: document.getElementById("inventory-edit"),
+  saveInventoryBtn: document.getElementById("save-inventory-btn"),
+  downloadInventoryBtn: document.getElementById("download-inventory-btn"),
+  uploadInventoryBtn: document.getElementById("upload-inventory-btn"),
+  inventoryFile: document.getElementById("inventory-file"),
+  inventoryStatus: document.getElementById("inventory-status"),
   errorBox: document.getElementById("error-box"),
 };
 
@@ -113,7 +118,9 @@ function renderMasterStatus(meta) {
     return;
   }
   const when = new Date(meta.ingestedAt).toLocaleString();
-  setMasterStatus(`Cached: ${meta.filename} · ingested ${when}`);
+  let text = `Cached: ${meta.filename} · ingested ${when}`;
+  if (meta.editedAt) text += ` · edited ${new Date(meta.editedAt).toLocaleString()}`;
+  setMasterStatus(text);
 }
 
 function renderInventoryView(inventory) {
@@ -121,8 +128,82 @@ function renderInventoryView(inventory) {
     el.inventoryDetails.hidden = true;
     return;
   }
-  el.inventoryView.textContent = JSON.stringify(inventory, null, 2);
+  el.inventoryEdit.value = JSON.stringify(inventory, null, 2);
   el.inventoryDetails.hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// Manual inventory editing — the inventory is the sole source of truth for
+// generation, so let the user make finite corrections directly (or export it,
+// edit externally, and re-import) without a full re-ingest.
+// ---------------------------------------------------------------------------
+function setInventoryStatus(text, isError) {
+  el.inventoryStatus.textContent = text;
+  el.inventoryStatus.style.color = isError ? "#e89090" : "";
+}
+
+function parseInventoryText(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    throw new UserError("Invalid JSON — " + e.message);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new UserError("The inventory must be a JSON object.");
+  }
+  return parsed;
+}
+
+// Save an edited/uploaded inventory and stamp the meta so the master-sheet
+// status line reflects that it was hand-edited.
+async function persistInventory(inventory) {
+  const meta = (await getInventoryMeta()) || {
+    filename: "custom.json",
+    ingestedAt: new Date().toISOString(),
+  };
+  meta.editedAt = new Date().toISOString();
+  await chrome.storage.local.set({ inventory, inventoryMeta: meta });
+  el.inventoryEdit.value = JSON.stringify(inventory, null, 2); // normalize formatting
+  renderMasterStatus(meta);
+}
+
+async function saveInventoryEdits() {
+  clearError();
+  try {
+    const inventory = parseInventoryText(el.inventoryEdit.value);
+    await persistInventory(inventory);
+    setInventoryStatus("Saved — future résumés use this edited inventory.");
+  } catch (err) {
+    setInventoryStatus(formatError(err), true);
+  }
+}
+
+async function downloadInventory() {
+  const inventory = await getInventory();
+  if (!inventory) return;
+  const blob = new Blob([JSON.stringify(inventory, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "ResumeAdapt inventory.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+async function uploadInventoryFile(file) {
+  clearError();
+  try {
+    const inventory = parseInventoryText(await file.text());
+    await persistInventory(inventory);
+    el.inventoryDetails.hidden = false;
+    el.inventoryDetails.open = true;
+    setInventoryStatus("Uploaded and saved.");
+  } catch (err) {
+    setInventoryStatus(formatError(err), true);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +315,16 @@ el.dropZone.addEventListener("drop", (e) => {
   const file = e.dataTransfer?.files?.[0];
   if (file) ingestFile(file);
 });
+
+el.saveInventoryBtn.addEventListener("click", saveInventoryEdits);
+el.downloadInventoryBtn.addEventListener("click", downloadInventory);
+el.uploadInventoryBtn.addEventListener("click", () => el.inventoryFile.click());
+el.inventoryFile.addEventListener("change", () => {
+  if (el.inventoryFile.files.length) uploadInventoryFile(el.inventoryFile.files[0]);
+  el.inventoryFile.value = "";
+});
+// Clear a stale save/error status once the user starts editing again.
+el.inventoryEdit.addEventListener("input", () => setInventoryStatus(""));
 
 async function restoreState() {
   const [meta, apiKey, inventory] = await Promise.all([

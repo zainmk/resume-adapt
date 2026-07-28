@@ -377,9 +377,13 @@ details#inventory-details summary {
   color: var(--mid);
 }
 .inventory-view {
+  display: block;
+  width: 100%;
   margin-top: 10px;
-  max-height: 360px;
+  min-height: 260px;
+  max-height: 60vh;
   overflow: auto;
+  resize: vertical;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.28);
   border-radius: 10px;
@@ -395,6 +399,16 @@ details#inventory-details summary {
 .inventory-view::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.16);
   border-radius: 6px;
+}
+.inventory-view:focus {
+  outline: none;
+  border-color: rgba(120, 170, 240, 0.55);
+}
+.inventory-actions {
+  gap: 14px;
+  margin-top: 12px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 

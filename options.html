@@ -42,9 +42,16 @@
         <span id="master-status" class="status" hidden></span>
       </div>
       <details id="inventory-details" hidden>
-        <summary>View parsed data</summary>
-        <p class="hint">This is exactly what the resume generator uses &mdash; only what's in your master sheet. Read it to verify nothing was invented; if something looks wrong, fix the master sheet and re-upload.</p>
-        <pre id="inventory-view" class="inventory-view"></pre>
+        <summary>View / edit parsed data</summary>
+        <p class="hint">This is exactly what the r&eacute;sum&eacute; generator uses &mdash; only what's in your master sheet. Verify nothing was invented, and make finite edits directly here (or Download, edit externally, and re-upload). Edits are validated as JSON and saved to this browser; the next r&eacute;sum&eacute; uses them.</p>
+        <textarea id="inventory-edit" class="inventory-view" spellcheck="false"></textarea>
+        <div class="row inventory-actions">
+          <button id="save-inventory-btn" type="button">Save changes</button>
+          <button id="download-inventory-btn" class="link-btn" type="button">Download JSON</button>
+          <button id="upload-inventory-btn" class="link-btn" type="button">Upload JSON</button>
+          <input type="file" id="inventory-file" accept=".json,application/json" hidden>
+          <span id="inventory-status" class="status"></span>
+        </div>
       </details>
       <p id="error-box" class="error" hidden></p>
     </section>
