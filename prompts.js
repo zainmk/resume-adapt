@@ -17,9 +17,11 @@ OMIT to keep the inventory high-signal — reduce narrative to its facts:
 
 Keep every entry atomic and specific; do not merge distinct accomplishments, and do not pad with prose. Use short factual phrases, not sentences or paragraphs. For each experience, project, and certification, if one or more URLs appear with or near that entry, record the FIRST such URL as that entry's url (never invent a URL or borrow one from a different entry).
 
+LOCATION & RELOCATION: record the candidate's current home location in contact.location (e.g. "Calgary, AB"). If the document states any openness to relocation (for example "open to relocation", "willing to relocate", "open to relocating anywhere in Canada", or a specific region), record that willingness — including any stated scope or regional limits — in contact.relocation. Omit contact.relocation entirely if the document says nothing about relocating; never assume willingness that isn't written.
+
 OUTPUT BUDGET: the complete inventory must comfortably fit within about 4,000 words of JSON, no matter how large the source document is. If the document is very large, compress harder — shorter phrases, fewer redundant details[] entries — rather than growing the output. An output that gets cut off mid-JSON is worthless, so staying within budget takes priority over exhaustive phrasing (but never drop a distinct fact or angle entirely; compress its wording instead).
 
-Respond with ONLY valid JSON, no markdown fences, using keys: name, contact {email, phone, location, links[]}, experience[] {company, title, location, dates, url, responsibilities[], achievements[], tools[], keywords[], details[]}, projects[] {name, description, domain, url, responsibilities[], achievements[], tools[], keywords[], details[]}, skills[], education[] {institution, degree, dates, details}, certifications[] {name, url}, other[]. In responsibilities[] and achievements[], use short factual phrases; details[] holds concrete resume-relevant facts that don't fit the other fields — keep it short, never prose.`;
+Respond with ONLY valid JSON, no markdown fences, using keys: name, contact {email, phone, location, relocation, links[]}, experience[] {company, title, location, dates, url, responsibilities[], achievements[], tools[], keywords[], details[]}, projects[] {name, description, domain, url, responsibilities[], achievements[], tools[], keywords[], details[]}, skills[], education[] {institution, degree, dates, details}, certifications[] {name, url}, other[]. In responsibilities[] and achievements[], use short factual phrases; details[] holds concrete resume-relevant facts that don't fit the other fields — keep it short, never prose.`;
 
 const GENERATION_SYSTEM_PROMPT = `You are a resume-tailoring engine. You receive a candidate's experience
 inventory (structured JSON derived from their master document) and a job
@@ -103,7 +105,7 @@ before or after. Exactly this schema:
             "match": { "score": number, "notes": [string] },
             "gaps": [string] },
   "name": string,
-  "contact": { "email": string, "phone": string, "links": [string] },
+  "contact": { "email": string, "phone": string, "location": string, "links": [string] },
   "summary": string,
   "skills": [ { "category": string, "items": [string] } ],
   "experience": [ { "company": string, "title": string,
@@ -142,6 +144,21 @@ posting's phrasing. Use the common industry name so the same gap tags
 identically across different postings. Include only genuine gaps — never
 something the resume already evidences. Deduplicate. 0-8 items, most important
 first. Empty array if the resume covers essentially everything required.
+
+LOCATION: Set "contact.location" to the candidate's current location from the
+inventory (for example "Calgary, AB"). If — and ONLY if — the inventory states
+the candidate is open to relocation (contact.relocation is present), AND the job
+description gives an on-site or hybrid work location in a city/region different
+from the candidate's current one, append " | Open to Relocating <that job
+location>" using the location named in the job description — formatted exactly
+like "Calgary, AB | Open to Relocating Vancouver, BC". Show ONLY the current
+location (no relocation clause) when: the inventory does not state openness to
+relocation; the job is remote; the job states no location; or the job's location
+matches the candidate's current location. Never invent a willingness to relocate
+the inventory doesn't state, never invent a job location, and respect any limits
+in the stated willingness (e.g. only relocate within certain regions — if the
+job's location is outside that scope, do not offer relocation). If the inventory
+has no location, omit "contact.location".
 
 LINKS: For an experience, project, or certification, if the inventory has one
 or more URLs associated with that entry, set "url" to the FIRST such URL so it

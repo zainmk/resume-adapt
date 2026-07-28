@@ -13,6 +13,7 @@ const el = {
   jdInput: document.getElementById("jd-input"),
   generateBtn: document.getElementById("generate-btn"),
   clearBtn: document.getElementById("clear-btn"),
+  genSpinner: document.getElementById("gen-spinner"),
   genStatus: document.getElementById("gen-status"),
   errorBox: document.getElementById("error-box"),
   resultSection: document.getElementById("result-section"),
@@ -25,6 +26,7 @@ const el = {
   gapsCount: document.getElementById("gaps-count"),
   gapsList: document.getElementById("gaps-list"),
   clearHistoryBtn: document.getElementById("clear-history-btn"),
+  exportAppsBtn: document.getElementById("export-apps-btn"),
 };
 
 let lastResume = null;
@@ -89,6 +91,7 @@ async function clearFlow() {
   el.targetRole.hidden = true;
   el.matchBox.hidden = true;
   el.resultSection.hidden = true;
+  el.genSpinner.hidden = true;
   el.genStatus.textContent = "";
   await chrome.storage.local.remove(["jdDraft", "lastResume", "lastJobTitle"]);
   el.jdInput.focus();
@@ -96,10 +99,11 @@ async function clearFlow() {
 
 // ---------------------------------------------------------------------------
 // Application history + recurring-gap tracking (tier B). Each generation
-// records {jdKey, title, company, date, score, gaps[]} locally — no extra API
-// call, the gaps come from the same generation response. Records are keyed by
-// a hash of the job description so regenerating the same job updates its record
-// rather than double-counting.
+// records {jdKey, title, company, date, score, gaps[], jd} locally — no extra
+// API call, the gaps come from the same generation response. The full job
+// description text (jd) is kept so the history is a complete, exportable log of
+// what was applied for. Records are keyed by a hash of the job description so
+// regenerating the same job updates its record rather than double-counting.
 // ---------------------------------------------------------------------------
 function hashJd(s) {
   let h = 5381;
@@ -122,6 +126,7 @@ async function recordApplication(jd, resume) {
     date: new Date().toISOString(),
     score: meta.match && typeof meta.match.score === "number" ? meta.match.score : null,
     gaps: Array.isArray(meta.gaps) ? meta.gaps.map((g) => String(g).trim()).filter(Boolean) : [],
+    jd: (jd || "").trim(),
   };
   const apps = await getApplications();
   const idx = apps.findIndex((a) => a.jdKey === record.jdKey);
@@ -182,8 +187,29 @@ function renderGaps(applications) {
 }
 
 async function clearHistory() {
+  if (!confirm("Delete the full application history (job descriptions, scores, and gaps)? Export first if you want a copy.")) {
+    return;
+  }
   await chrome.storage.local.remove("applications");
   renderGaps([]);
+}
+
+// Export the full application log (including each job description) as a
+// downloadable JSON file the user owns — nothing leaves the browser except this
+// local file save.
+async function exportApplications() {
+  const apps = await getApplications();
+  if (!apps.length) return;
+  const payload = {
+    app: "ResumeAdapt",
+    schema: "applications/v1",
+    exportedAt: new Date().toISOString(),
+    count: apps.length,
+    applications: apps,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadBlob(blob, `ResumeAdapt applications ${stamp}.json`);
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +306,8 @@ async function generate() {
   // on; final layout is tuned by the user in Word.
   el.generateBtn.disabled = true;
   el.regenerateBtn.disabled = true;
+  el.clearBtn.disabled = true; // avoid clearing a flow that's about to repopulate
+  el.genSpinner.hidden = false;
   el.genStatus.textContent = "Generating…";
   try {
     const resume = await callForJson(
@@ -302,8 +330,10 @@ async function generate() {
     el.genStatus.textContent = "";
     showError(err);
   } finally {
+    el.genSpinner.hidden = true;
     el.generateBtn.disabled = false;
     el.regenerateBtn.disabled = false;
+    el.clearBtn.disabled = false;
   }
 }
 
@@ -371,9 +401,10 @@ function renderPreview(resume) {
   // keep the full URL as the click target. Not inline-editable (composite).
   const c = resume.contact || {};
   const contactNodes = [];
+  // location may carry a relocation note, e.g. "Calgary, AB | Open to Relocating Vancouver, BC"
+  if (c.location) contactNodes.push(span(c.location));
   if (c.email) contactNodes.push(span(c.email));
   if (c.phone) contactNodes.push(span(c.phone));
-  // contact location intentionally not shown (remote-first)
   (c.links || []).forEach((l) => {
     const a = document.createElement("a");
     a.href = ensureHttp(l);
@@ -715,6 +746,7 @@ el.generateBtn.addEventListener("click", generate);
 el.regenerateBtn.addEventListener("click", generate);
 el.dlDocxBtn.addEventListener("click", downloadDocx);
 el.clearHistoryBtn.addEventListener("click", clearHistory);
+el.exportAppsBtn.addEventListener("click", exportApplications);
 el.clearBtn.addEventListener("click", clearFlow);
 el.jdInput.addEventListener("input", saveDraft);
 

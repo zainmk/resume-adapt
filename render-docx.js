@@ -37,9 +37,9 @@ function resumeJsonToDocx(resume, styles) {
     if (contactRuns.length) contactRuns.push(mutedRun("   ·   "));
     contactRuns.push(node);
   };
+  if (c.location) pushContact(mutedRun(c.location));
   if (c.email) pushContact(mutedRun(c.email));
   if (c.phone) pushContact(mutedRun(c.phone));
-  // contact location intentionally not shown (remote-first)
   (c.links || []).forEach((l) =>
     pushContact(
       new D.ExternalHyperlink({ link: ensureHttp(l), children: [mutedRun(prettyUrl(l))] })

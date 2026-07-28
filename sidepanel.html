@@ -34,6 +34,7 @@
 
       <div class="row">
         <button id="generate-btn" class="primary" type="button">Generate</button>
+        <span id="gen-spinner" class="spinner" hidden></span>
         <span id="gen-status" class="status"></span>
         <button id="clear-btn" class="link-btn clear-btn" type="button" title="Clear the job description and the generated result">Clear</button>
       </div>
@@ -58,7 +59,10 @@
         <summary>Recurring skill gaps</summary>
         <p class="hint">Skills/requirements that recur across the jobs you've generated for but aren't backed by your master sheet. Consider building them &mdash; or adding them to your master sheet if you already have them. Across <span id="gaps-count">0</span> application(s).</p>
         <div id="gaps-list"></div>
-        <button id="clear-history-btn" class="link-btn" type="button">Clear application history</button>
+        <div class="row history-actions">
+          <button id="export-apps-btn" class="link-btn" type="button">Export applications (.json)</button>
+          <button id="clear-history-btn" class="link-btn" type="button">Clear history</button>
+        </div>
       </details>
     </div>
   </main>

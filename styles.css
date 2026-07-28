@@ -323,6 +323,9 @@ button:disabled { opacity: 0.4; cursor: default; }
 /* "Clear" sits at the right edge of the Generate row */
 .clear-btn { margin-left: auto; }
 
+/* Export / clear actions under the application-history panel */
+.history-actions { gap: 16px; margin-top: 8px; }
+
 /* Target role this resume was tailored to — "Job Title @ Company" */
 .target-role {
   margin-top: 8px;

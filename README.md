@@ -207,6 +207,85 @@ Cost optimization is never free — most levers trade some quality, UX, or contr
 
 ---
 
+## Building your master sheet
+
+The master sheet is the **single source of truth**: every generated résumé is drawn *only* from it — nothing is invented — and it's ingested **once** into a structured inventory that every future résumé reuses. So optimize it for **coverage and factual density, not polish**. It never has to look like a résumé; it has to be complete, specific, and true. Think of it as *everything you've ever done*, from which the generator selects the job-relevant subset each time.
+
+**Principles**
+
+- **Dump everything.** Every role, project, side project, tool, metric, and outcome. If a fact isn't in here, it can *never* appear on a résumé.
+- **Be specific and quantified.** Real numbers, tools, and outcomes give the generator concrete, ATS-matchable material and keep bullets truthful — "cut API latency 40%" beats "improved performance."
+- **Capture angles, not prose.** One project can support several angles (ML, backend, data viz) — list each; the model surfaces whichever the job wants. Skip tutorials, theory, and marketing filler (ingestion drops them anyway).
+- **Include links.** A URL beside a project, role, or certification becomes a clickable hyperlink in the output.
+- **Truth in, truth out.** Nothing is embellished at generation time, so accuracy here is the only guard — never inflate a title, date, or metric.
+- **Length is free.** A long master sheet is fine: it's distilled once under a fixed output budget, so more coverage does **not** raise per-résumé cost.
+
+**Template** (copy, then replace — Markdown, plain text, `.docx`, or `.pdf` all work):
+
+```
+# Jane Doe
+Location: Calgary, AB — Open to relocation (Canada-wide)
+Email: jane@email.com | Phone: 555-123-4567
+Links: github.com/janedoe | linkedin.com/in/janedoe | janedoe.dev
+
+## Summary (optional)
+2–3 factual lines on who you are and your strongest domains.
+(The generator rewrites this per job, so keep it plain and true.)
+
+## Skills
+Languages: Python, JavaScript, Go, SQL
+Frameworks & Tools: React, Node, Django, Docker, Kubernetes, AWS, PostgreSQL
+Practices: CI/CD, automated testing, code review, agile
+
+## Experience
+
+### Senior Software Engineer — Acme Corp, Calgary, AB
+2022 – Present  |  acme.com
+- Led migration of the monolith to microservices, cutting deploy time 70%
+- Built the billing service (Go, PostgreSQL) handling ~2M requests/day
+- Mentored 4 engineers; owned on-call and incident response
+- Tools: Go, Kubernetes, AWS, Terraform, PostgreSQL
+
+### Software Developer — Beta Inc, Remote
+2019 – 2022  |  betainc.io
+- Shipped the customer dashboard (React) used by 15k+ monthly users
+- Cut page-load time 45% via query optimization and caching
+- Tools: React, Node, Redis, MySQL
+(Include older / less-relevant roles too — the generator trims per job.)
+
+## Projects
+
+### ResumeAdapt — Chrome extension that tailors résumés to a job description  |  github.com/janedoe/resume-adapt
+Domain: web / LLM tooling
+- Two-phase LLM pipeline with prompt caching; local-first, no backend
+- Tools: JavaScript, Manifest V3, Anthropic API
+(Include side projects, hackathons, and open source — anything real.)
+
+## Education
+
+### B.Sc. Computer Science — University of Calgary, Calgary, AB
+2015 – 2019
+- Honors; relevant coursework: distributed systems, ML, databases
+
+## Certifications
+- AWS Solutions Architect – Associate — Amazon, 2023  |  credly.com/…
+
+## Other (optional)
+Awards, publications, talks, volunteer work, spoken languages.
+```
+
+**Field notes**
+
+- **Location & relocation** — put your current location as `City, Prov`. Add a relocation line **only if it's true**, and scope it if limited (`Open to relocation within BC & Ontario`). This is what lets a résumé show `Calgary, AB | Open to Relocating Vancouver, BC` when a posting names a different on-site/hybrid city — the city is taken from the job description, never guessed, and the offer is omitted when you didn't state willingness, when the role is remote, or when it's in your own city.
+- **One fact per bullet.** Keep each bullet an atomic, factual phrase (action → method/tool → quantified outcome). The model rewrites *wording* per job, but never invents facts.
+- **List the stack on every entry.** The tools and keywords you name are what drive ATS matching for a given posting.
+- **Dates** — any consistent format; they're used verbatim.
+- **Don't include:** long prose/tutorials/theory (dropped on ingestion), sensitive PII beyond contact info (SIN, full street address, DOB), or anything exaggerated — it would become a false claim on the résumé.
+
+After uploading, open **Settings → "View parsed data"** to confirm exactly what was captured before you generate.
+
+---
+
 ## Architecture
 
 | File | Role |
