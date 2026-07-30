@@ -149,18 +149,13 @@ first. Empty array if the resume covers essentially everything required.
 
 LOCATION: Set "contact.location" to the candidate's current location from the
 inventory (for example "Calgary, AB"). If — and ONLY if — the inventory states
-the candidate is open to relocation (contact.relocation is present), AND the job
-description gives an on-site or hybrid work location in a city/region different
-from the candidate's current one, append " | Open to Relocating <that job
-location>" using the location named in the job description — formatted exactly
-like "Calgary, AB | Open to Relocating Vancouver, BC". Show ONLY the current
-location (no relocation clause) when: the inventory does not state openness to
-relocation; the job is remote; the job states no location; or the job's location
-matches the candidate's current location. Never invent a willingness to relocate
-the inventory doesn't state, never invent a job location, and respect any limits
-in the stated willingness (e.g. only relocate within certain regions — if the
-job's location is outside that scope, do not offer relocation). If the inventory
-has no location, omit "contact.location".
+the candidate is open to relocation (contact.relocation is present), append the
+fixed text " | Open to Relocating" — exactly that wording, with NO city, region,
+or other variation — formatted like "Calgary, AB | Open to Relocating". Do not
+inspect or name the job's location. If the inventory does not state openness to
+relocation, show only the current location. Never invent a willingness to
+relocate the inventory doesn't state. If the inventory has no location, omit
+"contact.location".
 
 EDUCATION: Keep each institution as a SINGLE education entry, and list every
 degree it granted in "degrees" (one string per degree, faithful to the

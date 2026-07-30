@@ -17,16 +17,10 @@ const el = {
   genStatus: document.getElementById("gen-status"),
   errorBox: document.getElementById("error-box"),
   resultSection: document.getElementById("result-section"),
-  regenerateBtn: document.getElementById("regenerate-btn"),
   targetRole: document.getElementById("target-role"),
   matchBox: document.getElementById("match-box"),
   preview: document.getElementById("preview"),
   dlDocxBtn: document.getElementById("dl-docx-btn"),
-  gapsPanel: document.getElementById("gaps-panel"),
-  gapsCount: document.getElementById("gaps-count"),
-  gapsList: document.getElementById("gaps-list"),
-  clearHistoryBtn: document.getElementById("clear-history-btn"),
-  exportAppsBtn: document.getElementById("export-apps-btn"),
 };
 
 let lastResume = null;
@@ -72,7 +66,6 @@ async function restoreSession() {
     el.resultSection.hidden = false; // show first so the preview can measure width
     renderPreview(savedResume);
   }
-  renderGaps(await getApplications());
 }
 
 // Reset the current job description and everything generated from it. Confirms
@@ -98,12 +91,13 @@ async function clearFlow() {
 }
 
 // ---------------------------------------------------------------------------
-// Application history + recurring-gap tracking (tier B). Each generation
-// records {jdKey, title, company, date, score, gaps[], jd} locally — no extra
-// API call, the gaps come from the same generation response. The full job
-// description text (jd) is kept so the history is a complete, exportable log of
-// what was applied for. Records are keyed by a hash of the job description so
-// regenerating the same job updates its record rather than double-counting.
+// Application history logging (tier B). Each generation records
+// {jdKey, title, company, date, score, gaps[], jd} locally — no extra API call,
+// the gaps come from the same generation response. The full job description text
+// (jd) is kept so the history is a complete, exportable log of what was applied
+// for. Records are keyed by a hash of the job description so regenerating the
+// same job updates its record rather than double-counting. The history is
+// viewed/edited and its recurring gaps aggregated on the Settings page.
 // ---------------------------------------------------------------------------
 function hashJd(s) {
   let h = 5381;
@@ -133,83 +127,6 @@ async function recordApplication(jd, resume) {
   if (idx >= 0) apps[idx] = record; // same job re-generated → replace
   else apps.push(record);
   await chrome.storage.local.set({ applications: apps });
-  renderGaps(apps);
-}
-
-// Tally normalized gap tags across all applications (deduped per application).
-function aggregateGaps(applications) {
-  const counts = new Map(); // canonical -> { label, count }
-  for (const app of applications) {
-    const seen = new Set();
-    for (const raw of app.gaps || []) {
-      const canon = String(raw).trim().toLowerCase();
-      if (!canon || seen.has(canon)) continue;
-      seen.add(canon);
-      const entry = counts.get(canon) || { label: String(raw).trim(), count: 0 };
-      entry.count++;
-      counts.set(canon, entry);
-    }
-  }
-  return [...counts.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-}
-
-function renderGaps(applications) {
-  const total = applications.length;
-  if (!total) {
-    el.gapsPanel.hidden = true;
-    return;
-  }
-  el.gapsCount.textContent = String(total);
-  el.gapsList.textContent = "";
-
-  const gaps = aggregateGaps(applications);
-  if (!gaps.length) {
-    const none = document.createElement("p");
-    none.className = "hint";
-    none.textContent = "No unmet requirements flagged yet — your master sheet covers what you've applied to.";
-    el.gapsList.appendChild(none);
-  } else {
-    gaps.slice(0, 20).forEach((g) => {
-      const row = document.createElement("div");
-      row.className = "gap-row";
-      const bar = document.createElement("span");
-      bar.className = "gap-count" + (g.count >= 2 ? " recurring" : "");
-      bar.textContent = `${g.count}/${total}`;
-      const label = document.createElement("span");
-      label.className = "gap-label";
-      label.textContent = g.label;
-      row.appendChild(bar);
-      row.appendChild(label);
-      el.gapsList.appendChild(row);
-    });
-  }
-  el.gapsPanel.hidden = false;
-}
-
-async function clearHistory() {
-  if (!confirm("Delete the full application history (job descriptions, scores, and gaps)? Export first if you want a copy.")) {
-    return;
-  }
-  await chrome.storage.local.remove("applications");
-  renderGaps([]);
-}
-
-// Export the full application log (including each job description) as a
-// downloadable JSON file the user owns — nothing leaves the browser except this
-// local file save.
-async function exportApplications() {
-  const apps = await getApplications();
-  if (!apps.length) return;
-  const payload = {
-    app: "ResumeAdapt",
-    schema: "applications/v1",
-    exportedAt: new Date().toISOString(),
-    count: apps.length,
-    applications: apps,
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const stamp = new Date().toISOString().slice(0, 10);
-  downloadBlob(blob, `ResumeAdapt applications ${stamp}.json`);
 }
 
 // ---------------------------------------------------------------------------
@@ -305,7 +222,6 @@ async function generate() {
   // whichever clean length (one or two full pages) the content lands tighter
   // on; final layout is tuned by the user in Word.
   el.generateBtn.disabled = true;
-  el.regenerateBtn.disabled = true;
   el.clearBtn.disabled = true; // avoid clearing a flow that's about to repopulate
   el.genSpinner.hidden = false;
   el.genStatus.textContent = "Generating…";
@@ -332,7 +248,6 @@ async function generate() {
   } finally {
     el.genSpinner.hidden = true;
     el.generateBtn.disabled = false;
-    el.regenerateBtn.disabled = false;
     el.clearBtn.disabled = false;
   }
 }
@@ -650,10 +565,7 @@ async function downloadDocx() {
 el.settingsLink.addEventListener("click", () => chrome.runtime.openOptionsPage());
 el.openSettingsBtn.addEventListener("click", () => chrome.runtime.openOptionsPage());
 el.generateBtn.addEventListener("click", generate);
-el.regenerateBtn.addEventListener("click", generate);
 el.dlDocxBtn.addEventListener("click", downloadDocx);
-el.clearHistoryBtn.addEventListener("click", clearHistory);
-el.exportAppsBtn.addEventListener("click", exportApplications);
 el.clearBtn.addEventListener("click", clearFlow);
 el.jdInput.addEventListener("input", saveDraft);
 

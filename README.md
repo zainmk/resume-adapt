@@ -75,7 +75,7 @@ Tailoring one résumé is *reactive*. The more useful question over a job search
 
 Every generation call already returns a match assessment. It now also returns a small `meta.gaps` array — the **normalized** skills/tools/qualifications the job requires that your master sheet doesn't support (e.g. `["Kubernetes", "PHP", "Team leadership"]`). Because these are canonical tags rather than the posting's freeform phrasing, the *same* gap tags identically across different postings — which is what makes "keeps coming up" counting actually work.
 
-Each generation is recorded locally as a lightweight application record (`{title, company, date, score, gaps[]}`), keyed by a hash of the job description so regenerating the same job **updates** its record instead of double-counting. A **Recurring skill gaps** panel then aggregates the tags across all applications — `Kubernetes — 7/12`, `PHP — 4/12` — surfacing exactly where to invest learning time. A recurring "gap" you actually *have* is its own signal: it means your master sheet under-documents it.
+Each generation is recorded locally as a lightweight application record (`{title, company, date, score, gaps[], jd}`), keyed by a hash of the job description so re-running the same job **updates** its record instead of double-counting. A **Recurring skill gaps** view on the Settings page then aggregates the tags across all applications — `Kubernetes — 7/12`, `PHP — 4/12` — surfacing exactly where to invest learning time. A recurring "gap" you actually *have* is its own signal: it means your master sheet under-documents it.
 
 **Cost: effectively zero.** The gap tags are ~30–80 extra output tokens piggybacked onto the generation call you're already making; storage and aggregation are entirely client-side. No separate analysis call, no new permissions, all local.
 
@@ -203,7 +203,7 @@ Cost optimization is never free — most levers trade some quality, UX, or contr
 2. Drop in your master sheet (`.pdf`/`.docx`). It's ingested once and cached.
 3. Optionally open **"View parsed data"** to confirm exactly what was captured (nothing is invented).
 
-**Generate:** paste a job description → **Generate** → review the preview → **Download .docx** and finalize in Word. **Regenerate** re-runs; the side panel persists your draft and last result across open/close.
+**Generate:** paste a job description → **Generate** → review the preview → **Download .docx** and finalize in Word. The side panel persists your draft and last result across open/close; **Clear** resets the current flow. Your application history is managed in **Settings**.
 
 ---
 
@@ -276,7 +276,7 @@ Awards, publications, talks, volunteer work, spoken languages.
 
 **Field notes**
 
-- **Location & relocation** — put your current location as `City, Prov`. Add a relocation line **only if it's true**, and scope it if limited (`Open to relocation within BC & Ontario`). This is what lets a résumé show `Calgary, AB | Open to Relocating Vancouver, BC` when a posting names a different on-site/hybrid city — the city is taken from the job description, never guessed, and the offer is omitted when you didn't state willingness, when the role is remote, or when it's in your own city.
+- **Location & relocation** — put your current location as `City, Prov`. Add a relocation line to the master **only if it's true** (e.g. `Open to relocation`). When present, every résumé shows the fixed note `Calgary, AB | Open to Relocating` (no city named — kept simple and consistent); when absent, it shows only your location. Willingness is never assumed — it must be stated in the master sheet.
 - **One fact per bullet.** Keep each bullet an atomic, factual phrase (action → method/tool → quantified outcome). The model rewrites *wording* per job, but never invents facts.
 - **List the stack on every entry.** The tools and keywords you name are what drive ATS matching for a given posting.
 - **Dates** — any consistent format; they're used verbatim.
@@ -290,8 +290,8 @@ After uploading, open **Settings → "View parsed data"** to confirm exactly wha
 
 | File | Role |
 |---|---|
-| `sidepanel.html` / `sidepanel.js` | The panel: job description in, tailored résumé out (preview, match badge, recurring-gap tracking, download). Reads the cached inventory + key; persists session state. |
-| `options.html` / `options.js` | Settings: API key, master-sheet upload/ingestion, and the parsed-data audit view. |
+| `sidepanel.html` / `sidepanel.js` | The panel: job description in, tailored résumé out (preview, match badge, download). Logs each application; reads the cached inventory + key; persists session state. |
+| `options.html` / `options.js` | Settings: API key, master-sheet upload/ingestion, the parsed-data audit/editor, and the application-history editor with the recurring-skill-gaps view. |
 | `background.js` | Minimal service worker — opens the side panel on toolbar click. |
 | `shared.js` | API layer (calls, prompt caching, timeouts, error mapping), storage helpers, shared style tokens. |
 | `prompts.js` | The ingestion and generation system prompts + request assembly (incl. the cache breakpoint). |

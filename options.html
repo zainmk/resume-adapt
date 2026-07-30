@@ -55,6 +55,27 @@
       </details>
       <p id="error-box" class="error" hidden></p>
     </section>
+
+    <section>
+      <h2>Application history</h2>
+      <p class="sub">Every r&eacute;sum&eacute; you generate is logged here (title, company, date, match score, gaps, and the job description). Kept only in this browser.</p>
+      <p class="hint">The full history as JSON (<span id="history-count">0</span> logged) &mdash; edit, import, or export it. Edits are validated and saved to this browser.</p>
+      <textarea id="history-edit" class="inventory-view" spellcheck="false"></textarea>
+      <div class="row inventory-actions">
+        <button id="save-history-btn" type="button">Save changes</button>
+        <button id="download-history-btn" class="link-btn" type="button">Download JSON</button>
+        <button id="upload-history-btn" class="link-btn" type="button">Upload JSON</button>
+        <input type="file" id="history-file" accept=".json,application/json" hidden>
+        <button id="clear-history-btn" class="link-btn danger" type="button">Clear history</button>
+        <span id="history-status" class="status"></span>
+      </div>
+
+      <details id="gaps-panel" class="gaps" hidden>
+        <summary>Recurring skill gaps</summary>
+        <p class="hint">Skills/requirements that recur across the jobs you've generated for but aren't backed by your master sheet. Consider building them &mdash; or adding them to your master sheet if you already have them. Across <span id="gaps-count">0</span> application(s).</p>
+        <div id="gaps-list"></div>
+      </details>
+    </section>
   </main>
 
   <script src="lib/mammoth.browser.min.js"></script>

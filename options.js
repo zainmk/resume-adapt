@@ -18,6 +18,17 @@ const el = {
   uploadInventoryBtn: document.getElementById("upload-inventory-btn"),
   inventoryFile: document.getElementById("inventory-file"),
   inventoryStatus: document.getElementById("inventory-status"),
+  historyCount: document.getElementById("history-count"),
+  historyEdit: document.getElementById("history-edit"),
+  saveHistoryBtn: document.getElementById("save-history-btn"),
+  downloadHistoryBtn: document.getElementById("download-history-btn"),
+  uploadHistoryBtn: document.getElementById("upload-history-btn"),
+  historyFile: document.getElementById("history-file"),
+  clearHistoryBtn: document.getElementById("clear-history-btn"),
+  historyStatus: document.getElementById("history-status"),
+  gapsPanel: document.getElementById("gaps-panel"),
+  gapsCount: document.getElementById("gaps-count"),
+  gapsList: document.getElementById("gaps-list"),
   errorBox: document.getElementById("error-box"),
 };
 
@@ -207,6 +218,156 @@ async function uploadInventoryFile(file) {
 }
 
 // ---------------------------------------------------------------------------
+// Application history — the log of generated résumés (the `applications` array
+// in storage, written by the side panel). Mirrors the inventory editor:
+// view/edit/import/export, plus clear.
+// ---------------------------------------------------------------------------
+async function getApplications() {
+  const { applications } = await chrome.storage.local.get("applications");
+  return Array.isArray(applications) ? applications : [];
+}
+
+function setHistoryStatus(text, isError) {
+  el.historyStatus.textContent = text;
+  el.historyStatus.style.color = isError ? "#e89090" : "";
+}
+
+function renderHistoryView(applications) {
+  const apps = Array.isArray(applications) ? applications : [];
+  el.historyCount.textContent = String(apps.length);
+  el.historyEdit.value = JSON.stringify(apps, null, 2);
+}
+
+// Accept a bare array of applications OR an export object { applications: [...] }.
+function parseHistoryText(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    throw new UserError("Invalid JSON — " + e.message);
+  }
+  const apps = Array.isArray(parsed)
+    ? parsed
+    : parsed && Array.isArray(parsed.applications)
+    ? parsed.applications
+    : null;
+  if (!apps) {
+    throw new UserError('Expected a JSON array of applications (or an export object with an "applications" array).');
+  }
+  return apps;
+}
+
+async function saveHistoryEdits() {
+  clearError();
+  try {
+    const apps = parseHistoryText(el.historyEdit.value);
+    await chrome.storage.local.set({ applications: apps });
+    renderHistoryView(apps); // normalize + refresh count
+    renderGaps(apps);
+    setHistoryStatus("Saved.");
+  } catch (err) {
+    setHistoryStatus(formatError(err), true);
+  }
+}
+
+async function downloadHistory() {
+  const apps = await getApplications();
+  const payload = {
+    app: "ResumeAdapt",
+    schema: "applications/v1",
+    exportedAt: new Date().toISOString(),
+    count: apps.length,
+    applications: apps,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ResumeAdapt applications ${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+async function uploadHistoryFile(file) {
+  clearError();
+  try {
+    const apps = parseHistoryText(await file.text());
+    await chrome.storage.local.set({ applications: apps });
+    renderHistoryView(apps);
+    renderGaps(apps);
+    setHistoryStatus("Uploaded and saved.");
+  } catch (err) {
+    setHistoryStatus(formatError(err), true);
+  }
+}
+
+async function clearHistory() {
+  if (!confirm("Delete the full application history (job descriptions, scores, and gaps)? Export first if you want a copy.")) {
+    return;
+  }
+  await chrome.storage.local.remove("applications");
+  renderHistoryView([]);
+  renderGaps([]);
+  setHistoryStatus("History cleared.");
+}
+
+// ---------------------------------------------------------------------------
+// Recurring skill gaps — aggregate the normalized gap tags across every logged
+// application (deduped per application) into a "these keep coming up" view.
+// ---------------------------------------------------------------------------
+function aggregateGaps(applications) {
+  const counts = new Map(); // canonical -> { label, count }
+  for (const app of applications) {
+    const seen = new Set();
+    for (const raw of app.gaps || []) {
+      const canon = String(raw).trim().toLowerCase();
+      if (!canon || seen.has(canon)) continue;
+      seen.add(canon);
+      const entry = counts.get(canon) || { label: String(raw).trim(), count: 0 };
+      entry.count++;
+      counts.set(canon, entry);
+    }
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function renderGaps(applications) {
+  const apps = Array.isArray(applications) ? applications : [];
+  const total = apps.length;
+  if (!total) {
+    el.gapsPanel.hidden = true;
+    return;
+  }
+  el.gapsCount.textContent = String(total);
+  el.gapsList.textContent = "";
+
+  const gaps = aggregateGaps(apps);
+  if (!gaps.length) {
+    const none = document.createElement("p");
+    none.className = "hint";
+    none.textContent = "No unmet requirements flagged yet — your master sheet covers what you've applied to.";
+    el.gapsList.appendChild(none);
+  } else {
+    gaps.slice(0, 20).forEach((g) => {
+      const row = document.createElement("div");
+      row.className = "gap-row";
+      const bar = document.createElement("span");
+      bar.className = "gap-count" + (g.count >= 2 ? " recurring" : "");
+      bar.textContent = `${g.count}/${total}`;
+      const label = document.createElement("span");
+      label.className = "gap-label";
+      label.textContent = g.label;
+      row.appendChild(bar);
+      row.appendChild(label);
+      el.gapsList.appendChild(row);
+    });
+  }
+  el.gapsPanel.hidden = false;
+}
+
+// ---------------------------------------------------------------------------
 // Master sheet ingestion — the master file is the only source.
 // ---------------------------------------------------------------------------
 async function ingestFile(file) {
@@ -326,15 +487,28 @@ el.inventoryFile.addEventListener("change", () => {
 // Clear a stale save/error status once the user starts editing again.
 el.inventoryEdit.addEventListener("input", () => setInventoryStatus(""));
 
+el.saveHistoryBtn.addEventListener("click", saveHistoryEdits);
+el.downloadHistoryBtn.addEventListener("click", downloadHistory);
+el.uploadHistoryBtn.addEventListener("click", () => el.historyFile.click());
+el.historyFile.addEventListener("change", () => {
+  if (el.historyFile.files.length) uploadHistoryFile(el.historyFile.files[0]);
+  el.historyFile.value = "";
+});
+el.clearHistoryBtn.addEventListener("click", clearHistory);
+el.historyEdit.addEventListener("input", () => setHistoryStatus(""));
+
 async function restoreState() {
-  const [meta, apiKey, inventory] = await Promise.all([
+  const [meta, apiKey, inventory, applications] = await Promise.all([
     getInventoryMeta(),
     getApiKey(),
     getInventory(),
+    getApplications(),
   ]);
 
   renderMasterStatus(meta);
   renderInventoryView(inventory);
+  renderHistoryView(applications);
+  renderGaps(applications);
 
   if (apiKey) {
     showMaskedKey();
