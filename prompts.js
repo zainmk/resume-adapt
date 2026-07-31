@@ -150,10 +150,10 @@ first. Empty array if the resume covers essentially everything required.
 LOCATION: Set "contact.location" to the candidate's current location from the
 inventory (for example "Calgary, AB"). If — and ONLY if — the inventory states
 the candidate is open to relocation (contact.relocation is present), append the
-fixed text " | Open to Relocation (No Package Required)" (exactly that wording, with NO
+fixed text " | Open to Relocation (No Pckg. Req.)" (exactly that wording, with NO
 city, region, or other variation). Then always append " | Remote" LAST to signal
 remote availability. So the result is "Calgary, AB | Remote" without a
-relocation statement, or "Calgary, AB | Open to Relocation (No Package Required) |
+relocation statement, or "Calgary, AB | Open to Relocation (No Pckg. Req.) |
 Remote" with one. Do not inspect or name the job's location. Never invent a
 willingness to relocate the inventory doesn't state. If the inventory has no
 location, set "contact.location" to "Remote".
