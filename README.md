@@ -276,7 +276,7 @@ Awards, publications, talks, volunteer work, spoken languages.
 
 **Field notes**
 
-- **Location & relocation** — put your current location as `City, Prov`. Add a relocation line to the master **only if it's true** (e.g. `Open to relocation`). When present, every résumé shows the fixed note `Calgary, AB | Open to Relocating` (no city named — kept simple and consistent); when absent, it shows only your location. Willingness is never assumed — it must be stated in the master sheet.
+- **Location & relocation** — put your current location as `City, Prov`. Every résumé header shows `Calgary, AB | Remote` (remote availability is always signaled, last). Add a relocation line to the master **only if it's true** (e.g. `Open to relocation`); when present the header becomes `Calgary, AB | Open to Relocation (Self-Funded) | Remote` — the "self-funded" note signals you'll relocate without an employer package (no city named). Relocation willingness is never assumed; it must be stated in the master sheet.
 - **One fact per bullet.** Keep each bullet an atomic, factual phrase (action → method/tool → quantified outcome). The model rewrites *wording* per job, but never invents facts.
 - **List the stack on every entry.** The tools and keywords you name are what drive ATS matching for a given posting.
 - **Dates** — any consistent format; they're used verbatim.
