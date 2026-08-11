@@ -217,6 +217,19 @@ async function generate() {
     return;
   }
 
+  // Warn if this exact job description was already generated for (matched on the
+  // same jdKey used to dedupe history records). Lets the user bail before
+  // spending an API call on a repeat.
+  const prior = (await getApplications()).find((a) => a.jdKey === hashJd(jd));
+  if (prior) {
+    const when = prior.date ? new Date(prior.date).toLocaleDateString() : "earlier";
+    const who = [prior.title, prior.company].filter(Boolean).join(" @ ");
+    const label = who ? `this job (${who})` : "this job description";
+    if (!confirm(`You already generated a résumé for ${label} on ${when}. Generate again?`)) {
+      return;
+    }
+  }
+
   // Generation reads only the cached inventory built from the master sheet.
   // One API call per Generate — the prompt instructs the model to commit to
   // whichever clean length (one or two full pages) the content lands tighter

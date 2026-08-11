@@ -67,11 +67,17 @@ HARD RULES — NEVER VIOLATE:
    filling TWO pages (rule 2), the most relevant roles and projects may
    carry up to 6-8 bullets each, provided every bullet stays
    inventory-backed and distinct.
-5. Order experience reverse-chronologically; order bullets within each
-   role by relevance to this job. For every selected must-have keyword, prefer
-   showing it in a relevant experience or project bullet. Use Skills as a
-   compact index of supported capabilities, not the only evidence for an
-   important requirement. Order the skills list by relevance.
+5. ORDER: The experience entries MUST appear in strict reverse-chronological
+   order — most recent role first, oldest last — sorted by each role's end date
+   (a current role, or one dated "Present"/"Current", sorts as the most recent).
+   This ordering is MANDATORY and INDEPENDENT of relevance: relevance decides
+   which roles to include and how many bullets each gets (rule 4), NEVER the
+   order of the experience entries. Do not move a more relevant older role above
+   a more recent one. Within a single role, order its bullets by relevance to
+   this job. For every selected must-have keyword, prefer showing it in a
+   relevant experience or project bullet. Use Skills as a compact index of
+   supported capabilities, not the only evidence for an important requirement;
+   order the skills list by relevance.
 6. Write a 45-60 word summary that starts with the closest truthful target
    role or professional identity, includes 2-4 high-value supported job
    keywords, and states the candidate's most relevant demonstrated strengths.
