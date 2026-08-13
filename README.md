@@ -38,6 +38,8 @@ crossing the truthfulness line — because I built it to use for my own job sear
 
 The core guarantee: **it never invents.** Every fact on the résumé traces back to your master sheet; the model selects and rephrases, but does not fabricate employers, titles, dates, metrics, or skills.
 
+![ResumeAdapt side panel showing the job-description input, Generate action, match score, and résumé preview](screenshot_3.png)
+
 ## Highlights
 
 - **Two-phase LLM pipeline** — a one-time *ingestion* pass (document → structured index) decoupled from cheap, repeatable *generation* passes (index + job description → résumé).
@@ -295,7 +297,7 @@ After uploading, open **Settings → "View parsed data"** to confirm exactly wha
 | `background.js` | Minimal service worker — opens the side panel on toolbar click. |
 | `shared.js` | API layer (calls, prompt caching, timeouts, error mapping), storage helpers, shared style tokens. |
 | `prompts.js` | The ingestion and generation system prompts + request assembly (incl. the cache breakpoint). |
-| `render-docx.js` / `render-pdf.js` | Pure renderers from the résumé JSON. `.docx` is the download; the pdfmake renderer supports the in-memory page estimate. |
+| `render-docx.js` | Pure renderer from the résumé JSON to the downloadable `.docx`. |
 
 ---
 
@@ -312,10 +314,9 @@ After uploading, open **Settings → "View parsed data"** to confirm exactly wha
 
 ## Tech stack
 
-Vanilla JS (no framework), Manifest V3, the Anthropic Messages API, and three vendored client-side libraries:
+Vanilla JS (no framework), Manifest V3, the Anthropic Messages API, and two vendored client-side libraries:
 
 | File | Package | Version |
 |---|---|---|
 | `mammoth.browser.min.js` | mammoth | 1.8.0 |
 | `docx.min.js` | docx (UMD) | 8.5.0 |
-| `pdfmake.min.js` + `vfs_fonts.js` | pdfmake | 0.2.10 |

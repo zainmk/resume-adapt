@@ -2,8 +2,8 @@
 // script, so everything here lives on the global scope).
 
 // ---------------------------------------------------------------------------
-// Shared resume style tokens — consumed by render-docx.js, render-pdf.js, and
-// the side panel's HTML preview so all three outputs match.
+// Shared resume style tokens — consumed by render-docx.js and the side panel's
+// HTML preview so both outputs match.
 // ---------------------------------------------------------------------------
 const RESUME_STYLES = {
   accentColor: "#1a4f8b",

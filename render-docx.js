@@ -215,14 +215,11 @@ function resumeJsonToDocx(resume, styles) {
     });
   }
 
-  // Pagination is calibrated to the PDF renderer (the canonical artifact):
-  // - margins 840 twips = 42pt on all sides, matching the PDF's pageMargins,
-  //   so both have an identical 528pt text width on LETTER.
-  // - line pitch "at least" 262 twentieths = 13.1pt, matching the PDF's
-  //   10.5pt x 1.25 lineHeight ("atLeast" so larger runs like the name still
-  //   grow their line instead of clipping).
-  // Residual page-length differences come only from font glyph widths
-  // (Calibri here vs pdfmake's Roboto).
+  // Page geometry (also mirrored by the side-panel preview sheet):
+  // - margins 840 twips = 42pt on all sides → a 528pt text width on LETTER.
+  // - line pitch "at least" 262 twentieths = 13.1pt (10.5pt x 1.25 line height;
+  //   "atLeast" so larger runs like the name grow their line instead of
+  //   clipping).
   const doc = new D.Document({
     styles: {
       default: {
