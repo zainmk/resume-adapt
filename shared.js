@@ -18,13 +18,27 @@ const RESUME_STYLES = {
 };
 
 const API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-4-6";
-const GENERATION_MAX_TOKENS = 4096;
+const MODEL = "claude-sonnet-5-5";
+
+// Per-route output budgets. Sonnet 5.5 thinks by default, and thinking tokens
+// count toward max_tokens even though their text isn't returned; its tokenizer
+// also counts the same text as ~30% more tokens than Sonnet 4.6. An unused cap
+// costs nothing, while a truncated reply is 100% wasted spend, so size for
+// thinking + the full JSON reply.
+//
+// Effort controls how much the model thinks. "low" is the documented starting
+// point for extraction and content generation, and skips thinking on most
+// simple requests; raise a route only if its output quality needs it. Keep
+// each route's value fixed — changing effort between requests invalidates the
+// prompt cache.
+const GENERATION_MAX_TOKENS = 16000;
+const GENERATION_EFFORT = "low";
 // Ingestion output headroom. The distillation prompt keeps the typical
-// inventory well under this; the generous cap exists so the verbose tail of
-// the output distribution succeeds on the first (and only) attempt instead of
-// truncating mid-JSON.
-const INGESTION_MAX_TOKENS = 16000;
+// inventory to about a third of this; the generous cap exists so the verbose
+// tail of the output distribution succeeds on the first (and only) attempt
+// instead of truncating mid-JSON.
+const INGESTION_MAX_TOKENS = 24000;
+const INGESTION_EFFORT = "low";
 
 // A user-facing error whose message is safe to show verbatim.
 class UserError extends Error {}
@@ -65,8 +79,9 @@ function formatError(err) {
 // ---------------------------------------------------------------------------
 // Per-request wall-clock cap so a stuck call fails loudly instead of hanging
 // forever. Generous, because ingesting a large master sheet is a one-time,
-// non-streaming call that can legitimately take a couple of minutes.
-const REQUEST_TIMEOUT_MS = 300000;
+// non-streaming call that can legitimately take several minutes once thinking
+// is included. 10 minutes matches the Anthropic SDKs' default request timeout.
+const REQUEST_TIMEOUT_MS = 600000;
 
 async function postMessages(apiKey, body) {
   const controller = new AbortController();
@@ -81,6 +96,8 @@ async function postMessages(apiKey, body) {
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
         "anthropic-dangerous-direct-browser-access": "true",
+        // Enables the `fallbacks` request field (see callClaude).
+        "anthropic-beta": "server-side-fallback-2026-07-01",
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -113,7 +130,7 @@ async function postMessages(apiKey, body) {
   return res.json();
 }
 
-async function callClaude(system, userContent, maxTokens) {
+async function callClaude(system, userContent, maxTokens, effort) {
   const apiKey = await getApiKey();
   if (!apiKey) {
     throw new UserError("No API key saved. Add your Anthropic API key in Settings.");
@@ -122,22 +139,36 @@ async function callClaude(system, userContent, maxTokens) {
   const data = await postMessages(apiKey, {
     model: MODEL,
     max_tokens: maxTokens,
+    output_config: { effort },
+    // Server-side refusal fallback: if a safety classifier declines the request
+    // (e.g. a false positive on security-related experience), the API re-runs
+    // it on a fallback model within the same call. "default" lets the API pick
+    // the fallback by refusal category.
+    fallbacks: "default",
     system,
     messages: [{ role: "user", content: userContent }],
   });
   if (data.usage) {
-    // Prompt-cache visibility (DevTools console): "read" tokens billed ~0.1x,
-    // "creation" tokens ~2x (1h TTL write), "input" tokens full price.
+    // Prompt-cache visibility (DevTools console). On Sonnet 5.5, "read" tokens
+    // bill at ~0.05x input, "creation" tokens ~2x (1h TTL write), "input"
+    // tokens full price; output includes any thinking. `data.model` names the
+    // model that served the reply — it differs from MODEL when a fallback ran.
     console.debug(
-      `[ResumeAdapt] tokens — input: ${data.usage.input_tokens}, ` +
+      `[ResumeAdapt] ${data.model} tokens — input: ${data.usage.input_tokens}, ` +
         `cache write: ${data.usage.cache_creation_input_tokens || 0}, ` +
         `cache read: ${data.usage.cache_read_input_tokens || 0}, ` +
         `output: ${data.usage.output_tokens}`
     );
   }
   if (data.stop_reason === "refusal") {
-    throw new UserError("The model declined this request.");
+    // Returned when no fallback covers the refusal category, or the fallback
+    // model declined too.
+    const category = data.stop_details && data.stop_details.category;
+    throw new UserError(
+      "The model declined this request" + (category ? ` (safety category: ${category})` : "") + "."
+    );
   }
+  // Only text blocks carry the reply; thinking and fallback blocks are skipped.
   const text = (data.content || [])
     .filter((b) => b.type === "text")
     .map((b) => b.text)
@@ -158,11 +189,12 @@ function stripFences(text) {
 // Call the model expecting JSON; on a parse failure, retry up to `attempts`
 // total calls (default 2). `onRetry` is invoked before each extra attempt.
 // Pass attempts=1 for expensive calls (ingestion) where a silent second try
-// would double the cost.
-async function callForJson(system, userContent, maxTokens, onRetry, attempts = 2) {
+// would double the cost. `maxTokens` and `effort` come from the route's
+// constants above.
+async function callForJson(system, userContent, maxTokens, effort, onRetry, attempts = 2) {
   let lastStopReason = null;
   for (let attempt = 0; attempt < attempts; attempt++) {
-    const { text, stopReason } = await callClaude(system, userContent, maxTokens);
+    const { text, stopReason } = await callClaude(system, userContent, maxTokens, effort);
     lastStopReason = stopReason;
     try {
       return JSON.parse(stripFences(text));

@@ -243,6 +243,7 @@ async function generate() {
       GENERATION_SYSTEM_PROMPT,
       buildGenerationUserMessage(inventory, jd),
       GENERATION_MAX_TOKENS,
+      GENERATION_EFFORT,
       () => { el.genStatus.textContent = "Response was malformed — retrying once…"; }
     );
 

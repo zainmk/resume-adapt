@@ -417,6 +417,7 @@ async function ingestFile(file) {
       INGESTION_SYSTEM_PROMPT,
       userContent,
       INGESTION_MAX_TOKENS,
+      INGESTION_EFFORT,
       null,
       1
     );

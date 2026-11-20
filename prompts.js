@@ -188,8 +188,8 @@ entry that has no associated link.`;
 // Returns content blocks with a prompt-cache breakpoint after the inventory.
 // The prefix (system prompt + inventory) is byte-identical on every generation
 // — only the job description changes — so Anthropic caches the model's
-// processed state of that prefix and re-reads it at ~0.1x input price on
-// subsequent runs. 1h TTL: an application session usually spans more than the
+// processed state of that prefix and re-reads it at a fraction of the input
+// price (~0.05x on Sonnet 5.5) on subsequent runs. 1h TTL: an application session usually spans more than the
 // default 5-minute window between job postings.
 function buildGenerationUserMessage(inventory, jobDescription) {
   return [
